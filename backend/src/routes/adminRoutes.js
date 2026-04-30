@@ -119,7 +119,7 @@ router.post('/categories/:id/move', (req, res) => {
 router.post('/items', (req, res) => {
   const {
     category_id, name, description, price, image_url, available,
-    is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, allergens,
+    is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens,
   } = req.body || {};
   if (!category_id || !name) return res.status(400).json({ error: 'category_id and name are required' });
   if (!ownsCategory(req.user.id, category_id)) return res.status(403).json({ error: 'forbidden' });
@@ -131,9 +131,9 @@ router.post('/items', (req, res) => {
   const result = db.prepare(`
     INSERT INTO items (
       category_id, name, description, price, image_url, available, "order",
-      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, allergens
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     category_id,
     name,
@@ -147,6 +147,7 @@ router.post('/items', (req, res) => {
     is_gluten_free ? 1 : 0,
     is_lactose_free ? 1 : 0,
     is_spicy ? 1 : 0,
+    is_featured ? 1 : 0,
     serializeAllergens(allergens),
   );
   res.status(201).json({ id: toNum(result.lastInsertRowid) });
@@ -156,7 +157,7 @@ router.put('/items/:id', (req, res) => {
   if (!ownsItem(req.user.id, req.params.id)) return res.status(404).json({ error: 'not found' });
   const {
     name, description, price, image_url, available,
-    is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, allergens,
+    is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens,
   } = req.body || {};
   db.prepare(`
     UPDATE items SET
@@ -170,6 +171,7 @@ router.put('/items/:id', (req, res) => {
       is_gluten_free = COALESCE(?, is_gluten_free),
       is_lactose_free = COALESCE(?, is_lactose_free),
       is_spicy = COALESCE(?, is_spicy),
+      is_featured = COALESCE(?, is_featured),
       allergens = COALESCE(?, allergens)
     WHERE id = ?
   `).run(
@@ -183,6 +185,7 @@ router.put('/items/:id', (req, res) => {
     flagValue(is_gluten_free),
     flagValue(is_lactose_free),
     flagValue(is_spicy),
+    flagValue(is_featured),
     allergens === undefined ? null : (serializeAllergens(allergens) ?? ''),
     req.params.id
   );
@@ -234,8 +237,8 @@ router.post('/seed-demo', (req, res) => {
   const insertItem = db.prepare(`
     INSERT INTO items (
       category_id, name, description, price, available, "order",
-      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, allergens
-    ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   // Czech-ish demo menu — covers different dietary tags so filtering looks meaningful.
@@ -251,9 +254,9 @@ router.post('/seed-demo', (req, res) => {
     {
       name: 'Hlavní jídla',
       items: [
-        ['Svíčková na smetaně', 'S houskovým knedlíkem (5 ks)', 219, { allergens: '1,3,7,9' }],
+        ['Svíčková na smetaně', 'S houskovým knedlíkem (5 ks)', 219, { featured: 1, allergens: '1,3,7,9' }],
         ['Smažený sýr', 'S vařeným bramborem a tatarkou', 189, { veg: 1, allergens: '1,3,7' }],
-        ['Grilovaný losos', 'Se zeleninou a citronem', 295, { gf: 1, lf: 1, allergens: '4' }],
+        ['Grilovaný losos', 'Se zeleninou a citronem', 295, { featured: 1, gf: 1, lf: 1, allergens: '4' }],
         ['Pikantní kuřecí kari', 'S basmati rýží', 219, { spicy: 1, gf: 1, allergens: '7' }],
         ['Vegan burger', 'Cizrnová placka, salát, avokádo, hranolky', 199, { veg: 1, vegan: 1, allergens: '1,11' }],
       ],
@@ -287,6 +290,7 @@ router.post('/seed-demo', (req, res) => {
         flags.gf ? 1 : 0,
         flags.lf ? 1 : 0,
         flags.spicy ? 1 : 0,
+        flags.featured ? 1 : 0,
         flags.allergens || null,
       );
     }

@@ -62,6 +62,7 @@ ensureColumn('items', 'is_vegan', 'is_vegan INTEGER NOT NULL DEFAULT 0');
 ensureColumn('items', 'is_gluten_free', 'is_gluten_free INTEGER NOT NULL DEFAULT 0');
 ensureColumn('items', 'is_lactose_free', 'is_lactose_free INTEGER NOT NULL DEFAULT 0');
 ensureColumn('items', 'is_spicy', 'is_spicy INTEGER NOT NULL DEFAULT 0');
+ensureColumn('items', 'is_featured', 'is_featured INTEGER NOT NULL DEFAULT 0');
 // Allergens stored as comma-separated EU codes (e.g. "1,3,7"). Codes 1–14 per EU 1169/2011.
 ensureColumn('items', 'allergens', 'allergens TEXT');
 

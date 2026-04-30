@@ -13,6 +13,7 @@ Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 - Admin rozhraní pro správu kategorií a položek
 - **Stravovací značky** — vegetariánské, vegan, bez lepku, bez laktózy, pikantní
 - **Alergeny** dle EU nařízení 1169/2011 (kódy 1–14)
+- **Doporučujeme** — položky označené jako doporučené se zobrazí ve vlastní sekci nahoře na veřejném menu
 - **Vyhledávání a filtrování** položek na veřejném menu
 - **Vícejazyčné UI** — čeština / angličtina (přepínač přímo v menu)
 - **Změna pořadí** kategorií i položek
@@ -73,6 +74,7 @@ npm run dev
 Každé jídlo má kromě názvu, ceny a popisu i:
 - `available` — dostupné / vyprodané
 - `is_vegetarian`, `is_vegan`, `is_gluten_free`, `is_lactose_free`, `is_spicy` — booleany
+- `is_featured` — boolean; položka se zobrazí v sekci "Doporučujeme" nahoře
 - `allergens` — pole kódů alergenů (`["1", "3", "7"]`) podle EU 1169/2011
 
 ## Cesty ve frontendu

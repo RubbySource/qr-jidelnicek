@@ -105,6 +105,7 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     is_gluten_free: !!item?.is_gluten_free,
     is_lactose_free: !!item?.is_lactose_free,
     is_spicy: !!item?.is_spicy,
+    is_featured: !!item?.is_featured,
     allergens: item?.allergens || [],
   });
   const [saving, setSaving] = useState(false);
@@ -154,6 +155,10 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
       </label>
+      <label className="row">
+        <input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
+        ★ Doporučujeme (zobrazí se v sekci Doporučujeme nahoře)
+      </label>
 
       <fieldset className="diet-fieldset">
         <legend>Stravovací značky</legend>
@@ -183,6 +188,7 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
 
 function DietBadges({ item }) {
   const flags = [
+    item.is_featured && { key: 'featured', label: '★ Doporučujeme', cls: 'badge-featured' },
     item.is_vegetarian && { key: 'veg', label: 'Veg', cls: 'badge-veg' },
     item.is_vegan && { key: 'vegan', label: 'Vegan', cls: 'badge-vegan' },
     item.is_gluten_free && { key: 'gf', label: 'Bez lepku', cls: 'badge-gf' },

@@ -1,9 +1,9 @@
 const ITEM_COLUMNS = `
   id, name, description, price, image_url, available, "order",
-  is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, allergens
+  is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
 `;
 
-const FLAG_FIELDS = ['is_vegetarian', 'is_vegan', 'is_gluten_free', 'is_lactose_free', 'is_spicy'];
+const FLAG_FIELDS = ['is_vegetarian', 'is_vegan', 'is_gluten_free', 'is_lactose_free', 'is_spicy', 'is_featured'];
 
 const ALLERGEN_CODES = new Set(
   Array.from({ length: 14 }, (_, i) => String(i + 1))
@@ -18,6 +18,7 @@ function normalizeItem(it) {
     is_gluten_free: !!it.is_gluten_free,
     is_lactose_free: !!it.is_lactose_free,
     is_spicy: !!it.is_spicy,
+    is_featured: !!it.is_featured,
     allergens: parseAllergens(it.allergens),
   };
 }

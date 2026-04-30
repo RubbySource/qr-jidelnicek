@@ -33,6 +33,7 @@ const STRINGS = {
     searchPlaceholder: 'Hledat v menu…',
     noResults: 'Žádné položky neodpovídají filtru.',
     clearFilters: 'Zrušit filtry',
+    specialsTitle: 'Doporučujeme',
     filters: {
       vegetarian: 'Vegetariánské',
       vegan: 'Vegan',
@@ -46,6 +47,7 @@ const STRINGS = {
       glutenFree: 'Bez lepku',
       lactoseFree: 'Bez laktózy',
       spicy: 'Pikantní',
+      featured: 'Doporučujeme',
     },
     languageLabel: 'CS',
   },
@@ -59,6 +61,7 @@ const STRINGS = {
     searchPlaceholder: 'Search the menu…',
     noResults: 'No items match the filter.',
     clearFilters: 'Clear filters',
+    specialsTitle: 'Chef’s picks',
     filters: {
       vegetarian: 'Vegetarian',
       vegan: 'Vegan',
@@ -72,6 +75,7 @@ const STRINGS = {
       glutenFree: 'GF',
       lactoseFree: 'LF',
       spicy: 'Spicy',
+      featured: 'Chef’s pick',
     },
     languageLabel: 'EN',
   },

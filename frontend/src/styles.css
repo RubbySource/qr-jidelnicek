@@ -163,7 +163,20 @@ fieldset.diet-fieldset legend {
 .badge-gf      { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .badge-lf      { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
 .badge-spicy   { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.badge-featured{ background: #fef9c3; color: #854d0e; border-color: #facc15; }
 .badge-allergen{ background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+
+/* Specials section — pulled to top of public menu */
+.category.specials {
+  border: 2px solid #facc15;
+  background: #fffbeb;
+}
+.category.specials h2 {
+  color: #854d0e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* Allergen picker (admin) */
 .allergen-grid {

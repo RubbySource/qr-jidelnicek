@@ -28,8 +28,9 @@ function normalizeText(s) {
     .replace(/[̀-ͯ]/g, '');
 }
 
-function DietBadges({ item, lang }) {
+function DietBadges({ item, lang, includeFeatured = true }) {
   const flags = [
+    includeFeatured && item.is_featured && { key: 'featured', cls: 'badge-featured', prefix: '★ ' },
     item.is_vegetarian && { key: 'vegetarian', cls: 'badge-veg' },
     item.is_vegan && { key: 'vegan', cls: 'badge-vegan' },
     item.is_gluten_free && { key: 'glutenFree', cls: 'badge-gf' },
@@ -40,7 +41,9 @@ function DietBadges({ item, lang }) {
   return (
     <div className="badges">
       {flags.map((f) => (
-        <span key={f.key} className={`badge ${f.cls}`}>{t(lang, `badges.${f.key}`)}</span>
+        <span key={f.key} className={`badge ${f.cls}`}>
+          {f.prefix || ''}{t(lang, `badges.${f.key}`)}
+        </span>
       ))}
     </div>
   );
@@ -119,6 +122,10 @@ export default function PublicMenu() {
 
   const { restaurant, categories } = data;
   const hasAnyItems = categories.some((c) => c.items.length > 0);
+  const noFiltersActive = !search && activeFilters.size === 0;
+  const featuredItems = noFiltersActive
+    ? categories.flatMap((c) => c.items.filter((it) => it.is_featured && it.available))
+    : [];
 
   return (
     <div>
@@ -173,6 +180,23 @@ export default function PublicMenu() {
 
         {hasAnyItems && totalShown === 0 && (
           <p className="muted">{t(lang, 'noResults')}</p>
+        )}
+
+        {featuredItems.length > 0 && (
+          <div className="category specials">
+            <h2>★ {t(lang, 'specialsTitle')}</h2>
+            {featuredItems.map((it) => (
+              <div className={`item ${it.available ? '' : 'unavailable'}`} key={`feat-${it.id}`}>
+                <div className="item-info">
+                  <div className="item-name">{it.name}</div>
+                  {it.description && <div className="item-desc">{it.description}</div>}
+                  <DietBadges item={it} lang={lang} includeFeatured={false} />
+                  <AllergensLine item={it} lang={lang} />
+                </div>
+                <div className="item-price">{formatPrice(it.price, lang)}</div>
+              </div>
+            ))}
+          </div>
         )}
 
         {filteredCategories.map((c) => (
