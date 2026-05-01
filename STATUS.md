@@ -1,38 +1,43 @@
 # STATUS — QR Jidelnicek Pro
 
-_Last updated: 2026-05-01 (merge všech claude/* větví do main)_
+_Last updated: 2026-05-01 (větev `claude/qr-kod-vylepseni`)_
 
-## Stav main
+## Co se přidalo
 
-Všechny aktivní feature branche sloučeny do `main` a pushnuty na origin.
+**QR kód vylepšení — barevný PNG + SVG + PDF download**
 
-```
-cb7eeab merge: stripe billing + analytics + email templates
-7f8467a feat: stripe billing + analytics + email templates
-cd9c2cf merge: admin-dashboard (CRUD, drag-drop, base64 upload, availability toggle)
-863a846 Merge pull request #4 from RubbySource/claude/backend-stabilizace
-3a74f2c merge: resolve STATUS.md conflict (keep backend stabilizace + retain P1 audit notes)
-3af23cf feat: admin dashboard - CRUD, drag-drop, image upload, availability, preview
-ea455a5 docs: doplnit URL pro ruční vytvoření PR do STATUS.md
-2bb46a9 feat: backend smoke tests + stabilizace
-```
+### Backend (`backend/src/routes/publicRoutes.js`)
+- Nainstalován `pdfkit` (qrcode už byl); přidán import `PDFDocument`.
+- Endpoint `GET /api/qr/:slug` rozšířen o query param `?format=png|svg|pdf` (default `png`).
+- Společná QR konfigurace: `color { dark: '#1a1a2e', light: '#ffffff' }`, `width: 512`, `margin: 2`, `errorCorrectionLevel: 'H'` — brand barva místo defaultní černé, vysoká chybová korekce kvůli potenciálnímu logu / poškrábání nálepky.
+- **PNG** (default) — `QRCode.toBuffer(url, QR_OPTIONS)`, `Cache-Control: public, max-age=300`.
+- **SVG** — `QRCode.toString(url, { ...QR_OPTIONS, type: 'svg' })`, `Content-Type: image/svg+xml`.
+- **PDF (A4)** — PDFKit dokument: vystředěný název restaurace (Helvetica-Bold 28, brand barva), podtitul, QR kód 300×300 px, URL pod QR jako klikatelný odkaz.
+- Společný `?download=1` přepínač pro `Content-Disposition: attachment`.
 
-## Co je v main
+### Frontend
+- Nová stránka `frontend/src/pages/QRPage.jsx`:
+  - Preview QR kódu (img tag s `/api/qr/:slug`).
+  - Tři tlačítka — **Stáhnout PNG / SVG / PDF (A4)** — fetch + Blob + `<a download>` trigger.
+  - Loading state per format, error display, tipy pro tisk.
+- Route `/qr/:slug` přidána do `frontend/src/main.jsx`.
+- Admin dashboard (`frontend/src/pages/Admin.jsx`) má nové tlačítko **📥 QR kód** vedle "Zobrazit jako zákazník" + textový odkaz "Stáhnout v PNG / SVG / PDF →".
 
-- **Backend stabilizace** (PR #4) — `node:sqlite`, `bcryptjs`, 18/18 smoke testů (`backend/test.js`).
-- **Admin dashboard** — CRUD pro kategorie/položky, drag-drop řazení, upload obrázků (base64), toggle dostupnosti, preview.
-- **Stripe billing + analytics + email templates** — feature-set sloučen na vrchol main.
+## Build & syntax check
 
-## Merge poznámky
-
-- `claude/backend-stabilizace` — již součást `main` před touto operací (fast-forward na pull).
-- `claude/admin-dashboard` — konflikty v `backend/src/db.js`, `adminRoutes.js`, `publicRoutes.js`, `frontend/src/pages/Admin.jsx`, `frontend/src/styles.css`. Vyřešeno přijetím verze z `admin-dashboard` (`git checkout --theirs`), protože tato větev byla vystavěna nad backend-stabilizací a obsahuje nejnovější admin funkcionalitu.
-- `claude/stripe…` jako samostatná větev neexistovala — stripe commity (`7f8467a`, `cb7eeab`) byly už na origin/main při pull.
-- Syntax check (`node --check`) prošel pro `backend/src/server.js`, `db.js`, `menu.js`, `routes/adminRoutes.js`, `routes/publicRoutes.js`.
+- `npm install` v `backend/` (přidán pdfkit ^0.18.0) i `frontend/` ✅
+- `npm run build` (vite): `dist/assets/index-Bq1pT-4F.js 186.53 kB │ gzip: 60.74 kB` ✅
+- `node --check` na `publicRoutes.js` a `server.js` ✅
 
 ## Push
 
-`git push origin main` ✅ — origin/main = local main (`cb7eeab`).
+Větev `claude/qr-kod-vylepseni` pushnuta na origin (viz commit níže).
+
+## Předchozí stav main (kontext)
+
+- backend stabilizace (PR #4)
+- admin dashboard (CRUD, drag-drop, base64 upload, availability toggle)
+- stripe billing + analytics + email templates
 
 ## Otevřené P1 (z předchozího auditu, stále platné)
 
@@ -41,7 +46,3 @@ ea455a5 docs: doplnit URL pro ruční vytvoření PR do STATUS.md
 - **DB backup:** strategie zálohy SQLite (cron + S3 / off-site) není definována.
 - **Validace vstupů:** chybí Zod/Joi schémata.
 - **Strukturované logování:** zatím jen `console.error`.
-
-## PR
-
-PR #4: <https://github.com/RubbySource/qr-jidelnicek/pull/4>

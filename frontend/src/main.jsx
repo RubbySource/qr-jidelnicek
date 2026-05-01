@@ -5,6 +5,7 @@ import App from './App.jsx';
 import Landing from './pages/Landing.jsx';
 import PublicMenu from './pages/PublicMenu.jsx';
 import Admin from './pages/Admin.jsx';
+import QRPage from './pages/QRPage.jsx';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />}>
           <Route index element={<Landing />} />
           <Route path="menu/:slug" element={<PublicMenu />} />
+          <Route path="qr/:slug" element={<QRPage />} />
           <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>
