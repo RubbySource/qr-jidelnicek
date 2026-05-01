@@ -96,6 +96,13 @@ if (!hasColumn('restaurants', 'stripe_subscription_id')) {
 if (!hasColumn('restaurants', 'trial_reminder_sent')) {
   db.exec('ALTER TABLE restaurants ADD COLUMN trial_reminder_sent INTEGER NOT NULL DEFAULT 0');
 }
+if (!hasColumn('restaurants', 'plan_expires_at')) {
+  try {
+    db.exec('ALTER TABLE restaurants ADD COLUMN plan_expires_at INTEGER');
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) throw err;
+  }
+}
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;

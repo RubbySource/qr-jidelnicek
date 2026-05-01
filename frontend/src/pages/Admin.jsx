@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
+import UpgradeButton from '../components/UpgradeButton';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -414,7 +415,10 @@ function Dashboard({ restaurant, onLogout }) {
     <div>
       <div className="admin-bar">
         <h1>QR Jídelníček — {restaurant.name}</h1>
-        <button onClick={onLogout}>Odhlásit</button>
+        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+          <UpgradeButton />
+          <button onClick={onLogout}>Odhlásit</button>
+        </div>
       </div>
       <div className="container-wide">
         {error && <p className="error">{error}</p>}
