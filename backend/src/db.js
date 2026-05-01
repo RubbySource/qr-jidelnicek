@@ -48,23 +48,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_items_category ON items(category_id);
 `);
 
-// Idempotent migration for existing databases — add new columns if missing.
-function ensureColumn(table, column, ddl) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
-  if (!cols.includes(column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
-  }
+const itemCols = db.prepare("PRAGMA table_info(items)").all();
+if (!itemCols.some((c) => c.name === 'position')) {
+  db.exec('ALTER TABLE items ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  db.exec(`
+    UPDATE items SET position = (
+      SELECT COUNT(*) FROM items i2
+      WHERE i2.category_id = items.category_id AND i2.id < items.id
+    )
+  `);
 }
-
-ensureColumn('items', 'order', '"order" INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_vegetarian', 'is_vegetarian INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_vegan', 'is_vegan INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_gluten_free', 'is_gluten_free INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_lactose_free', 'is_lactose_free INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_spicy', 'is_spicy INTEGER NOT NULL DEFAULT 0');
-ensureColumn('items', 'is_featured', 'is_featured INTEGER NOT NULL DEFAULT 0');
-// Allergens stored as comma-separated EU codes (e.g. "1,3,7"). Codes 1–14 per EU 1169/2011.
-ensureColumn('items', 'allergens', 'allergens TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_items_position ON items(category_id, position)');
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;

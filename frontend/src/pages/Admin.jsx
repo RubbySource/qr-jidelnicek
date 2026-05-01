@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, getToken, setToken } from '../api';
-import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -64,31 +63,71 @@ function AuthForm({ onAuth }) {
   );
 }
 
-function AllergenPicker({ selected, onChange }) {
-  const set = new Set((selected || []).map(String));
-  function toggle(code) {
-    const next = new Set(set);
-    if (next.has(code)) next.delete(code);
-    else next.add(code);
-    onChange(Array.from(next));
+const MAX_IMAGE_DIM = 1024;
+const IMAGE_QUALITY = 0.82;
+
+function fileToResizedDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Soubor není obrázek'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Nepodařilo se přečíst soubor'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Neplatný obrázek'));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        resolve(canvas.toDataURL(mime, IMAGE_QUALITY));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ImageField({ value, onChange }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      onChange(dataUrl);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
   }
+
   return (
-    <div className="allergen-grid">
-      {ALLERGEN_CODES.map((code) => {
-        const active = set.has(code);
-        return (
-          <button
-            key={code}
-            type="button"
-            className={`allergen-chip ${active ? 'active' : ''}`}
-            onClick={() => toggle(code)}
-            title={allergenLabel(code, 'cs')}
-          >
-            <span className="allergen-num">{code}</span>
-            <span className="allergen-label">{ALLERGENS[code].cs}</span>
-          </button>
-        );
-      })}
+    <div>
+      <span style={{ display: 'block', marginBottom: 4, fontSize: 14, color: '#374151' }}>Obrázek</span>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        {value && <img src={value} alt="Náhled" className="thumb" />}
+        <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} disabled={busy} style={{ flex: 1, minWidth: 200 }} />
+        {value && (
+          <button type="button" onClick={() => onChange('')}>Odstranit</button>
+        )}
+      </div>
+      {busy && <p className="muted">Zpracovávám obrázek…</p>}
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }
@@ -100,13 +139,6 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     price: item?.price ?? 0,
     image_url: item?.image_url || '',
     available: item?.available ?? true,
-    is_vegetarian: !!item?.is_vegetarian,
-    is_vegan: !!item?.is_vegan,
-    is_gluten_free: !!item?.is_gluten_free,
-    is_lactose_free: !!item?.is_lactose_free,
-    is_spicy: !!item?.is_spicy,
-    is_featured: !!item?.is_featured,
-    allergens: item?.allergens || [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -129,10 +161,6 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     }
   }
 
-  function setFlag(key) {
-    return (e) => setForm({ ...form, [key]: e.target.checked });
-  }
-
   return (
     <form onSubmit={save} className="card" style={{ background: '#f9fafb' }}>
       <label>
@@ -147,36 +175,11 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <span>Cena (Kč)</span>
         <input type="number" min="0" step="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
       </label>
-      <label>
-        <span>URL obrázku (volitelně)</span>
-        <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
-      </label>
-      <label className="row">
+      <ImageField value={form.image_url} onChange={(v) => setForm({ ...form, image_url: v })} />
+      <label className="row" style={{ marginTop: 12 }}>
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
       </label>
-      <label className="row">
-        <input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
-        ★ Doporučujeme (zobrazí se v sekci Doporučujeme nahoře)
-      </label>
-
-      <fieldset className="diet-fieldset">
-        <legend>Stravovací značky</legend>
-        <label className="row"><input type="checkbox" checked={form.is_vegetarian} onChange={setFlag('is_vegetarian')} style={{ width: 'auto', marginRight: 8 }} />Vegetariánské</label>
-        <label className="row"><input type="checkbox" checked={form.is_vegan} onChange={setFlag('is_vegan')} style={{ width: 'auto', marginRight: 8 }} />Vegan</label>
-        <label className="row"><input type="checkbox" checked={form.is_gluten_free} onChange={setFlag('is_gluten_free')} style={{ width: 'auto', marginRight: 8 }} />Bez lepku</label>
-        <label className="row"><input type="checkbox" checked={form.is_lactose_free} onChange={setFlag('is_lactose_free')} style={{ width: 'auto', marginRight: 8 }} />Bez laktózy</label>
-        <label className="row"><input type="checkbox" checked={form.is_spicy} onChange={setFlag('is_spicy')} style={{ width: 'auto', marginRight: 8 }} />Pikantní</label>
-      </fieldset>
-
-      <fieldset className="diet-fieldset">
-        <legend>Alergeny (EU)</legend>
-        <AllergenPicker
-          selected={form.allergens}
-          onChange={(allergens) => setForm({ ...form, allergens })}
-        />
-      </fieldset>
-
       {error && <p className="error">{error}</p>}
       <div className="row">
         <button className="primary" disabled={saving}>{saving ? 'Ukládám…' : 'Uložit'}</button>
@@ -186,22 +189,77 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   );
 }
 
-function DietBadges({ item }) {
-  const flags = [
-    item.is_featured && { key: 'featured', label: '★ Doporučujeme', cls: 'badge-featured' },
-    item.is_vegetarian && { key: 'veg', label: 'Veg', cls: 'badge-veg' },
-    item.is_vegan && { key: 'vegan', label: 'Vegan', cls: 'badge-vegan' },
-    item.is_gluten_free && { key: 'gf', label: 'Bez lepku', cls: 'badge-gf' },
-    item.is_lactose_free && { key: 'lf', label: 'Bez laktózy', cls: 'badge-lf' },
-    item.is_spicy && { key: 'spicy', label: 'Pikantní', cls: 'badge-spicy' },
-  ].filter(Boolean);
-  if (flags.length === 0 && (!item.allergens || item.allergens.length === 0)) return null;
+function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category.name);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === category.name) {
+      setEditing(false);
+      setName(category.name);
+      return;
+    }
+    await onRename(trimmed);
+    setEditing(false);
+  }
+
   return (
-    <div className="badges">
-      {flags.map((f) => <span key={f.key} className={`badge ${f.cls}`}>{f.label}</span>)}
-      {item.allergens && item.allergens.length > 0 && (
-        <span className="badge badge-allergen">Alergeny: {item.allergens.join(', ')}</span>
+    <div className="row-spread">
+      <div className="row" style={{ flex: 1, minWidth: 0 }}>
+        <span className="drag-handle" title="Přetáhnout pro změnu pořadí" {...dragHandlers}>⋮⋮</span>
+        {editing ? (
+          <>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setName(category.name); } }}
+              style={{ flex: 1 }}
+            />
+            <button type="button" onClick={save}>Uložit</button>
+            <button type="button" onClick={() => { setEditing(false); setName(category.name); }}>Zrušit</button>
+          </>
+        ) : (
+          <h3 style={{ margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{category.name}</h3>
+        )}
+      </div>
+      {!editing && (
+        <div className="row">
+          <button type="button" onClick={() => setEditing(true)}>Přejmenovat</button>
+          <button className="danger" onClick={onDelete}>Smazat kategorii</button>
+        </div>
       )}
+    </div>
+  );
+}
+
+function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
+  return (
+    <div
+      className={`item ${isDragging ? 'item-dragging' : ''} ${!item.available ? 'item-row-unavailable' : ''}`}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <span className="drag-handle" title="Přetáhnout pro změnu pořadí" {...dragHandlers}>⋮⋮</span>
+      {item.image_url && <img src={item.image_url} alt="" className="thumb" />}
+      <div className="item-info">
+        <div className="item-name">{item.name}</div>
+        {item.description && <div className="item-desc">{item.description}</div>}
+      </div>
+      <div className="row">
+        <span className="item-price">{Number(item.price).toLocaleString('cs-CZ')} Kč</span>
+        <label className="switch" title={item.available ? 'Dostupné' : 'Nedostupné'}>
+          <input
+            type="checkbox"
+            checked={!!item.available}
+            onChange={(e) => onToggleAvailable(e.target.checked)}
+          />
+          <span className="slider" />
+        </label>
+        <button onClick={onEdit}>Upravit</button>
+        <button className="danger" onClick={onDelete}>×</button>
+      </div>
     </div>
   );
 }
@@ -212,7 +270,8 @@ function Dashboard({ restaurant, onLogout }) {
   const [newCategory, setNewCategory] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
-  const [seeding, setSeeding] = useState(false);
+  const dragRef = useRef({ kind: null, id: null, categoryId: null });
+  const [dragKey, setDragKey] = useState(null);
 
   async function load() {
     try {
@@ -232,42 +291,92 @@ function Dashboard({ restaurant, onLogout }) {
     load();
   }
 
+  async function renameCategory(id, name) {
+    await api.updateCategory(id, { name });
+    load();
+  }
+
   async function deleteCategory(id) {
     if (!confirm('Opravdu smazat kategorii a všechny její položky?')) return;
     await api.deleteCategory(id);
     load();
   }
+
   async function deleteItem(id) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
   }
-  async function moveCategory(id, direction) {
-    await api.moveCategory(id, direction);
-    load();
-  }
-  async function moveItem(id, direction) {
-    await api.moveItem(id, direction);
-    load();
-  }
-  async function loadDemo() {
-    if (!confirm('Načíst ukázkové menu? Funguje pouze pokud je menu prázdné.')) return;
-    setSeeding(true);
+
+  async function toggleAvailable(item, available) {
+    setData((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) => ({
+        ...c,
+        items: c.items.map((it) => (it.id === item.id ? { ...it, available } : it)),
+      })),
+    }));
     try {
-      await api.seedDemo();
-      await load();
+      await api.setItemAvailability(item.id, available);
     } catch (err) {
-      alert(err.message);
-    } finally {
-      setSeeding(false);
+      setError(err.message);
+      load();
     }
   }
 
-  if (error) return <p className="error">Chyba: {error}</p>;
+  function startDragCategory(id) {
+    dragRef.current = { kind: 'category', id, categoryId: null };
+    setDragKey(`cat-${id}`);
+  }
+
+  function startDragItem(id, categoryId) {
+    dragRef.current = { kind: 'item', id, categoryId };
+    setDragKey(`item-${id}`);
+  }
+
+  function endDrag() {
+    dragRef.current = { kind: null, id: null, categoryId: null };
+    setDragKey(null);
+  }
+
+  async function dropOnCategory(targetId) {
+    const drag = dragRef.current;
+    endDrag();
+    if (drag.kind !== 'category' || drag.id === targetId) return;
+    const ids = data.categories.map((c) => c.id);
+    const targetIdx = ids.indexOf(targetId);
+    if (targetIdx < 0) return;
+    try {
+      await api.reorderCategory(drag.id, targetIdx);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function dropOnItem(targetItem, targetCategoryId) {
+    const drag = dragRef.current;
+    endDrag();
+    if (drag.kind !== 'item') return;
+    if (drag.categoryId !== targetCategoryId) return;
+    if (drag.id === targetItem.id) return;
+    const cat = data.categories.find((c) => c.id === targetCategoryId);
+    if (!cat) return;
+    const ids = cat.items.map((i) => i.id);
+    const targetIdx = ids.indexOf(targetItem.id);
+    if (targetIdx < 0) return;
+    try {
+      await api.reorderItem(drag.id, targetIdx);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  if (error && !data) return <p className="error">Chyba: {error}</p>;
   if (!data) return <p>Načítání…</p>;
 
   const publicUrl = `${window.location.origin}/menu/${restaurant.slug}`;
-  const categories = data.categories;
 
   return (
     <div>
@@ -276,23 +385,19 @@ function Dashboard({ restaurant, onLogout }) {
         <button onClick={onLogout}>Odhlásit</button>
       </div>
       <div className="container-wide">
+        {error && <p className="error">{error}</p>}
         <div className="card">
           <div className="row-spread">
             <div>
               <strong>Veřejné menu:</strong>{' '}
               <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
             </div>
+            <a className="btn primary" href={publicUrl} target="_blank" rel="noreferrer">
+              Zobrazit jako zákazník ↗
+            </a>
           </div>
           <img className="qr-img" src={api.qrUrl(restaurant.slug)} alt="QR kód" />
-          <div className="row" style={{ flexWrap: 'wrap' }}>
-            <a className="btn" href={api.qrUrl(restaurant.slug, { size: 1024, download: true })} download>
-              Stáhnout PNG (1024 px)
-            </a>
-            <a className="btn" href={api.qrUrl(restaurant.slug, { format: 'svg', download: true })} download>
-              Stáhnout SVG (vektor)
-            </a>
-          </div>
-          <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. SVG je ideální pro tiskárnu (libovolná velikost beze ztráty kvality).</p>
+          <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. Zákazníci ho načtou mobilem.</p>
         </div>
 
         <h2>Kategorie a položky</h2>
@@ -306,35 +411,33 @@ function Dashboard({ restaurant, onLogout }) {
           <button className="primary">Přidat kategorii</button>
         </form>
 
-        {categories.length === 0 && (
-          <div className="card">
-            <p className="muted">Zatím žádné kategorie. Začněte přidáním první — nebo si načtěte ukázkové menu, ať vidíte, jak to vypadá.</p>
-            <button onClick={loadDemo} disabled={seeding}>
-              {seeding ? 'Načítám…' : 'Načíst ukázkové menu'}
-            </button>
-          </div>
+        {data.categories.length === 0 && (
+          <p className="muted">Zatím žádné kategorie. Začněte přidáním první.</p>
         )}
 
-        {categories.map((c, ci) => (
-          <div className="card" key={c.id}>
-            <div className="row-spread">
-              <h3 style={{ margin: 0 }}>{c.name}</h3>
-              <div className="row">
-                <button
-                  onClick={() => moveCategory(c.id, 'up')}
-                  disabled={ci === 0}
-                  title="Posunout nahoru"
-                >↑</button>
-                <button
-                  onClick={() => moveCategory(c.id, 'down')}
-                  disabled={ci === categories.length - 1}
-                  title="Posunout dolů"
-                >↓</button>
-                <button className="danger" onClick={() => deleteCategory(c.id)}>Smazat kategorii</button>
-              </div>
-            </div>
+        {data.categories.map((c) => (
+          <div
+            className={`card ${dragKey === `cat-${c.id}` ? 'card-dragging' : ''}`}
+            key={c.id}
+            onDragOver={(e) => { if (dragRef.current.kind === 'category') e.preventDefault(); }}
+            onDrop={() => dropOnCategory(c.id)}
+          >
+            <CategoryHeader
+              category={c}
+              onRename={(name) => renameCategory(c.id, name)}
+              onDelete={() => deleteCategory(c.id)}
+              dragHandlers={{
+                draggable: true,
+                onDragStart: () => startDragCategory(c.id),
+                onDragEnd: endDrag,
+              }}
+            />
 
-            {c.items.map((it, ii) => (
+            {c.items.length === 0 && (
+              <p className="muted" style={{ marginTop: 12 }}>Zatím žádné položky.</p>
+            )}
+
+            {c.items.map((it) => (
               <div key={it.id}>
                 {editingItem?.id === it.id ? (
                   <ItemEditor
@@ -344,20 +447,25 @@ function Dashboard({ restaurant, onLogout }) {
                     onCancel={() => setEditingItem(null)}
                   />
                 ) : (
-                  <div className="item">
-                    <div className="item-info">
-                      <div className="item-name">{it.name} {!it.available && <span className="muted">(nedostupné)</span>}</div>
-                      {it.description && <div className="item-desc">{it.description}</div>}
-                      <DietBadges item={it} />
-                    </div>
-                    <div className="row">
-                      <span className="item-price">{Number(it.price).toLocaleString('cs-CZ')} Kč</span>
-                      <button onClick={() => moveItem(it.id, 'up')} disabled={ii === 0} title="Nahoru">↑</button>
-                      <button onClick={() => moveItem(it.id, 'down')} disabled={ii === c.items.length - 1} title="Dolů">↓</button>
-                      <button onClick={() => setEditingItem(it)}>Upravit</button>
-                      <button className="danger" onClick={() => deleteItem(it.id)}>×</button>
-                    </div>
-                  </div>
+                  <ItemRow
+                    item={it}
+                    onEdit={() => setEditingItem(it)}
+                    onDelete={() => deleteItem(it.id)}
+                    onToggleAvailable={(v) => toggleAvailable(it, v)}
+                    isDragging={dragKey === `item-${it.id}`}
+                    dragHandlers={{
+                      draggable: true,
+                      onDragStart: () => startDragItem(it.id, c.id),
+                      onDragEnd: endDrag,
+                    }}
+                    onDragOver={(e) => {
+                      if (dragRef.current.kind === 'item' && dragRef.current.categoryId === c.id) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
+                    onDrop={(e) => { e.stopPropagation(); dropOnItem(it, c.id); }}
+                  />
                 )}
               </div>
             ))}

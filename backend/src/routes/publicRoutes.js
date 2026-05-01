@@ -1,7 +1,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const db = require('../db');
-const { ITEM_COLUMNS, normalizeItem } = require('../menu');
 
 const router = express.Router();
 
@@ -21,12 +20,12 @@ router.get('/menu/:slug', (req, res) => {
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    `SELECT ${ITEM_COLUMNS} FROM items WHERE category_id = ? ORDER BY "order" ASC, id ASC`
+    'SELECT id, name, description, price, image_url, available FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
   );
 
   const result = categories.map((c) => ({
     ...c,
-    items: itemStmt.all(c.id).map(normalizeItem),
+    items: itemStmt.all(c.id).map((it) => ({ ...it, available: !!it.available })),
   }));
 
   res.json({ restaurant, menu, categories: result });
@@ -39,27 +38,9 @@ router.get('/qr/:slug', async (req, res) => {
   const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:5173';
   const url = `${baseUrl.replace(/\/$/, '')}/menu/${req.params.slug}`;
 
-  const sizeRaw = parseInt(req.query.size, 10);
-  const size = Number.isFinite(sizeRaw) ? Math.min(2048, Math.max(128, sizeRaw)) : 512;
-  const format = String(req.query.format || 'png').toLowerCase();
-  const download = req.query.download === '1';
-
   try {
-    if (format === 'svg') {
-      const svg = await QRCode.toString(url, { type: 'svg', margin: 2, width: size });
-      res.setHeader('Content-Type', 'image/svg+xml');
-      if (download) {
-        res.setHeader('Content-Disposition', `attachment; filename="qr-${req.params.slug}.svg"`);
-      }
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      return res.send(svg);
-    }
-
-    const png = await QRCode.toBuffer(url, { width: size, margin: 2 });
+    const png = await QRCode.toBuffer(url, { width: 512, margin: 2 });
     res.setHeader('Content-Type', 'image/png');
-    if (download) {
-      res.setHeader('Content-Disposition', `attachment; filename="qr-${req.params.slug}.png"`);
-    }
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.send(png);
   } catch (err) {
