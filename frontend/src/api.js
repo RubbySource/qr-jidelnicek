@@ -1,4 +1,9 @@
 const TOKEN_KEY = 'qrj_token';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+function url(path) {
+  return `${API_BASE}${path}`;
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -8,13 +13,13 @@ export function setToken(t) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-async function request(method, url, body, auth) {
+async function request(method, path, body, auth) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth) {
     const t = getToken();
     if (t) headers.Authorization = `Bearer ${t}`;
   }
-  const res = await fetch(url, {
+  const res = await fetch(url(path), {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -33,7 +38,7 @@ export const api = {
     if (opts.format) params.set('format', opts.format);
     if (opts.download) params.set('download', '1');
     const qs = params.toString();
-    return `/api/qr/${slug}${qs ? `?${qs}` : ''}`;
+    return url(`/api/qr/${slug}${qs ? `?${qs}` : ''}`);
   },
   register: (payload) => request('POST', '/api/auth/register', payload),
   login: (payload) => request('POST', '/api/auth/login', payload),

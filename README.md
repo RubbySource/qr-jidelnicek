@@ -5,7 +5,7 @@ Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 ## Stack
 - Backend: Node.js + Express + SQLite (vestavěný `node:sqlite`, vyžaduje Node 22.5+)
 - Frontend: React + Vite
-- Auth: JWT (bcrypt pro hesla)
+- Auth: JWT (bcryptjs pro hesla)
 - QR: `qrcode` npm balíček
 
 ## Funkce
@@ -41,6 +41,7 @@ npm run dev
 ### Frontend
 ```bash
 cd frontend
+cp .env.example .env   # produkční build → nastavit VITE_API_URL
 npm install
 npm run dev
 ```
