@@ -96,6 +96,14 @@ if (!hasColumn('restaurants', 'stripe_subscription_id')) {
 if (!hasColumn('restaurants', 'trial_reminder_sent')) {
   db.exec('ALTER TABLE restaurants ADD COLUMN trial_reminder_sent INTEGER NOT NULL DEFAULT 0');
 }
+if (!hasColumn('restaurants', 'custom_slug')) {
+  try {
+    db.exec('ALTER TABLE restaurants ADD COLUMN custom_slug TEXT UNIQUE');
+  } catch (err) {
+    console.error('ALTER restaurants ADD custom_slug failed:', err);
+  }
+}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_custom_slug ON restaurants(custom_slug) WHERE custom_slug IS NOT NULL');
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
+import SlugEditor from '../components/SlugEditor';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -295,7 +296,7 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
   );
 }
 
-function Dashboard({ restaurant, onLogout }) {
+function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [newCategory, setNewCategory] = useState('');
@@ -408,7 +409,8 @@ function Dashboard({ restaurant, onLogout }) {
   if (error && !data) return <p className="error">Chyba: {error}</p>;
   if (!data) return <p>Načítání…</p>;
 
-  const publicUrl = `${window.location.origin}/menu/${restaurant.slug}`;
+  const publicSlug = restaurant.custom_slug || restaurant.slug;
+  const publicUrl = `${window.location.origin}/menu/${publicSlug}`;
 
   return (
     <div>
@@ -459,9 +461,25 @@ function Dashboard({ restaurant, onLogout }) {
           >
             📊 Statistiky
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'settings'}
+            className={`tab ${tab === 'settings' ? 'tab-active' : ''}`}
+            onClick={() => setTab('settings')}
+          >
+            ⚙️ Nastavení
+          </button>
         </div>
 
         {tab === 'analytics' && <AnalyticsCard />}
+
+        {tab === 'settings' && (
+          <SlugEditor
+            restaurant={restaurant}
+            onUpdated={(slug) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, custom_slug: slug })}
+          />
+        )}
 
         {tab === 'menu' && (
         <>
@@ -572,5 +590,5 @@ export default function Admin() {
 
   if (loading) return <div className="container"><p>Načítání…</p></div>;
   if (!restaurant) return <AuthForm onAuth={setRestaurant} />;
-  return <Dashboard restaurant={restaurant} onLogout={logout} />;
+  return <Dashboard restaurant={restaurant} onLogout={logout} onRestaurantUpdated={setRestaurant} />;
 }

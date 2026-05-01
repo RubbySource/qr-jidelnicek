@@ -78,10 +78,41 @@ router.get('/analytics', (req, res) => {
 
 router.get('/me', (req, res) => {
   const r = db.prepare(
-    'SELECT id, name, slug, email, plan, created_at FROM restaurants WHERE id = ?'
+    'SELECT id, name, slug, custom_slug, email, plan, created_at FROM restaurants WHERE id = ?'
   ).get(req.user.id);
   if (!r) return res.status(404).json({ error: 'not found' });
   res.json(r);
+});
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+router.put('/restaurants/:id/slug', (req, res) => {
+  if (Number(req.params.id) !== Number(req.user.id)) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  const raw = (req.body && req.body.slug) ?? '';
+  const slug = String(raw).trim().toLowerCase();
+  if (slug.length < 3 || slug.length > 40) {
+    return res.status(400).json({ error: 'Slug musí mít 3 až 40 znaků.' });
+  }
+  if (!SLUG_RE.test(slug)) {
+    return res.status(400).json({ error: 'Slug může obsahovat jen malá písmena a-z, čísla 0-9 a pomlčky.' });
+  }
+  const taken = db.prepare(
+    'SELECT id FROM restaurants WHERE (custom_slug = ? OR slug = ?) AND id != ?'
+  ).get(slug, slug, req.user.id);
+  if (taken) {
+    return res.status(409).json({ error: 'Tento slug už je obsazený.' });
+  }
+  try {
+    db.prepare('UPDATE restaurants SET custom_slug = ? WHERE id = ?').run(slug, req.user.id);
+  } catch (err) {
+    if (String(err.message || '').toLowerCase().includes('unique')) {
+      return res.status(409).json({ error: 'Tento slug už je obsazený.' });
+    }
+    throw err;
+  }
+  res.json({ slug });
 });
 
 router.get('/menu', (req, res) => {

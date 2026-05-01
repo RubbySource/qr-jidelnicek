@@ -57,4 +57,5 @@ export const api = {
   moveItem: (id, direction) => request('POST', `/api/admin/items/${id}/move`, { direction }, true),
   seedDemo: () => request('POST', '/api/admin/seed-demo', {}, true),
   analytics: () => request('GET', '/api/admin/analytics', null, true),
+  updateSlug: (id, slug) => request('PUT', `/api/admin/restaurants/${id}/slug`, { slug }, true),
 };
