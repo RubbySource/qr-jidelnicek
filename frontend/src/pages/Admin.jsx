@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, getToken, setToken } from '../api';
 
 function AuthForm({ onAuth }) {
@@ -63,6 +63,75 @@ function AuthForm({ onAuth }) {
   );
 }
 
+const MAX_IMAGE_DIM = 1024;
+const IMAGE_QUALITY = 0.82;
+
+function fileToResizedDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Soubor není obrázek'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Nepodařilo se přečíst soubor'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Neplatný obrázek'));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        resolve(canvas.toDataURL(mime, IMAGE_QUALITY));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ImageField({ value, onChange }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      onChange(dataUrl);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  return (
+    <div>
+      <span style={{ display: 'block', marginBottom: 4, fontSize: 14, color: '#374151' }}>Obrázek</span>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        {value && <img src={value} alt="Náhled" className="thumb" />}
+        <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} disabled={busy} style={{ flex: 1, minWidth: 200 }} />
+        {value && (
+          <button type="button" onClick={() => onChange('')}>Odstranit</button>
+        )}
+      </div>
+      {busy && <p className="muted">Zpracovávám obrázek…</p>}
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
 function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   const [form, setForm] = useState({
     name: item?.name || '',
@@ -106,11 +175,8 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <span>Cena (Kč)</span>
         <input type="number" min="0" step="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
       </label>
-      <label>
-        <span>URL obrázku (volitelně)</span>
-        <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
-      </label>
-      <label className="row">
+      <ImageField value={form.image_url} onChange={(v) => setForm({ ...form, image_url: v })} />
+      <label className="row" style={{ marginTop: 12 }}>
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
       </label>
@@ -123,12 +189,89 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   );
 }
 
+function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category.name);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === category.name) {
+      setEditing(false);
+      setName(category.name);
+      return;
+    }
+    await onRename(trimmed);
+    setEditing(false);
+  }
+
+  return (
+    <div className="row-spread">
+      <div className="row" style={{ flex: 1, minWidth: 0 }}>
+        <span className="drag-handle" title="Přetáhnout pro změnu pořadí" {...dragHandlers}>⋮⋮</span>
+        {editing ? (
+          <>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setName(category.name); } }}
+              style={{ flex: 1 }}
+            />
+            <button type="button" onClick={save}>Uložit</button>
+            <button type="button" onClick={() => { setEditing(false); setName(category.name); }}>Zrušit</button>
+          </>
+        ) : (
+          <h3 style={{ margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{category.name}</h3>
+        )}
+      </div>
+      {!editing && (
+        <div className="row">
+          <button type="button" onClick={() => setEditing(true)}>Přejmenovat</button>
+          <button className="danger" onClick={onDelete}>Smazat kategorii</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
+  return (
+    <div
+      className={`item ${isDragging ? 'item-dragging' : ''} ${!item.available ? 'item-row-unavailable' : ''}`}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <span className="drag-handle" title="Přetáhnout pro změnu pořadí" {...dragHandlers}>⋮⋮</span>
+      {item.image_url && <img src={item.image_url} alt="" className="thumb" />}
+      <div className="item-info">
+        <div className="item-name">{item.name}</div>
+        {item.description && <div className="item-desc">{item.description}</div>}
+      </div>
+      <div className="row">
+        <span className="item-price">{Number(item.price).toLocaleString('cs-CZ')} Kč</span>
+        <label className="switch" title={item.available ? 'Dostupné' : 'Nedostupné'}>
+          <input
+            type="checkbox"
+            checked={!!item.available}
+            onChange={(e) => onToggleAvailable(e.target.checked)}
+          />
+          <span className="slider" />
+        </label>
+        <button onClick={onEdit}>Upravit</button>
+        <button className="danger" onClick={onDelete}>×</button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ restaurant, onLogout }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [newCategory, setNewCategory] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
+  const dragRef = useRef({ kind: null, id: null, categoryId: null });
+  const [dragKey, setDragKey] = useState(null);
 
   async function load() {
     try {
@@ -143,8 +286,13 @@ function Dashboard({ restaurant, onLogout }) {
   async function addCategory(e) {
     e.preventDefault();
     if (!newCategory.trim()) return;
-    await api.createCategory({ name: newCategory.trim(), order: data.categories.length });
+    await api.createCategory({ name: newCategory.trim() });
     setNewCategory('');
+    load();
+  }
+
+  async function renameCategory(id, name) {
+    await api.updateCategory(id, { name });
     load();
   }
 
@@ -153,13 +301,79 @@ function Dashboard({ restaurant, onLogout }) {
     await api.deleteCategory(id);
     load();
   }
+
   async function deleteItem(id) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
   }
 
-  if (error) return <p className="error">Chyba: {error}</p>;
+  async function toggleAvailable(item, available) {
+    setData((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) => ({
+        ...c,
+        items: c.items.map((it) => (it.id === item.id ? { ...it, available } : it)),
+      })),
+    }));
+    try {
+      await api.setItemAvailability(item.id, available);
+    } catch (err) {
+      setError(err.message);
+      load();
+    }
+  }
+
+  function startDragCategory(id) {
+    dragRef.current = { kind: 'category', id, categoryId: null };
+    setDragKey(`cat-${id}`);
+  }
+
+  function startDragItem(id, categoryId) {
+    dragRef.current = { kind: 'item', id, categoryId };
+    setDragKey(`item-${id}`);
+  }
+
+  function endDrag() {
+    dragRef.current = { kind: null, id: null, categoryId: null };
+    setDragKey(null);
+  }
+
+  async function dropOnCategory(targetId) {
+    const drag = dragRef.current;
+    endDrag();
+    if (drag.kind !== 'category' || drag.id === targetId) return;
+    const ids = data.categories.map((c) => c.id);
+    const targetIdx = ids.indexOf(targetId);
+    if (targetIdx < 0) return;
+    try {
+      await api.reorderCategory(drag.id, targetIdx);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function dropOnItem(targetItem, targetCategoryId) {
+    const drag = dragRef.current;
+    endDrag();
+    if (drag.kind !== 'item') return;
+    if (drag.categoryId !== targetCategoryId) return;
+    if (drag.id === targetItem.id) return;
+    const cat = data.categories.find((c) => c.id === targetCategoryId);
+    if (!cat) return;
+    const ids = cat.items.map((i) => i.id);
+    const targetIdx = ids.indexOf(targetItem.id);
+    if (targetIdx < 0) return;
+    try {
+      await api.reorderItem(drag.id, targetIdx);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  if (error && !data) return <p className="error">Chyba: {error}</p>;
   if (!data) return <p>Načítání…</p>;
 
   const publicUrl = `${window.location.origin}/menu/${restaurant.slug}`;
@@ -171,12 +385,16 @@ function Dashboard({ restaurant, onLogout }) {
         <button onClick={onLogout}>Odhlásit</button>
       </div>
       <div className="container-wide">
+        {error && <p className="error">{error}</p>}
         <div className="card">
           <div className="row-spread">
             <div>
               <strong>Veřejné menu:</strong>{' '}
               <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
             </div>
+            <a className="btn primary" href={publicUrl} target="_blank" rel="noreferrer">
+              Zobrazit jako zákazník ↗
+            </a>
           </div>
           <img className="qr-img" src={api.qrUrl(restaurant.slug)} alt="QR kód" />
           <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. Zákazníci ho načtou mobilem.</p>
@@ -198,11 +416,26 @@ function Dashboard({ restaurant, onLogout }) {
         )}
 
         {data.categories.map((c) => (
-          <div className="card" key={c.id}>
-            <div className="row-spread">
-              <h3 style={{ margin: 0 }}>{c.name}</h3>
-              <button className="danger" onClick={() => deleteCategory(c.id)}>Smazat kategorii</button>
-            </div>
+          <div
+            className={`card ${dragKey === `cat-${c.id}` ? 'card-dragging' : ''}`}
+            key={c.id}
+            onDragOver={(e) => { if (dragRef.current.kind === 'category') e.preventDefault(); }}
+            onDrop={() => dropOnCategory(c.id)}
+          >
+            <CategoryHeader
+              category={c}
+              onRename={(name) => renameCategory(c.id, name)}
+              onDelete={() => deleteCategory(c.id)}
+              dragHandlers={{
+                draggable: true,
+                onDragStart: () => startDragCategory(c.id),
+                onDragEnd: endDrag,
+              }}
+            />
+
+            {c.items.length === 0 && (
+              <p className="muted" style={{ marginTop: 12 }}>Zatím žádné položky.</p>
+            )}
 
             {c.items.map((it) => (
               <div key={it.id}>
@@ -214,17 +447,25 @@ function Dashboard({ restaurant, onLogout }) {
                     onCancel={() => setEditingItem(null)}
                   />
                 ) : (
-                  <div className="item">
-                    <div className="item-info">
-                      <div className="item-name">{it.name} {!it.available && <span className="muted">(nedostupné)</span>}</div>
-                      {it.description && <div className="item-desc">{it.description}</div>}
-                    </div>
-                    <div className="row">
-                      <span className="item-price">{Number(it.price).toLocaleString('cs-CZ')} Kč</span>
-                      <button onClick={() => setEditingItem(it)}>Upravit</button>
-                      <button className="danger" onClick={() => deleteItem(it.id)}>×</button>
-                    </div>
-                  </div>
+                  <ItemRow
+                    item={it}
+                    onEdit={() => setEditingItem(it)}
+                    onDelete={() => deleteItem(it.id)}
+                    onToggleAvailable={(v) => toggleAvailable(it, v)}
+                    isDragging={dragKey === `item-${it.id}`}
+                    dragHandlers={{
+                      draggable: true,
+                      onDragStart: () => startDragItem(it.id, c.id),
+                      onDragEnd: endDrag,
+                    }}
+                    onDragOver={(e) => {
+                      if (dragRef.current.kind === 'item' && dragRef.current.categoryId === c.id) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
+                    onDrop={(e) => { e.stopPropagation(); dropOnItem(it, c.id); }}
+                  />
                 )}
               </div>
             ))}

@@ -34,8 +34,11 @@ export const api = {
   myMenu: () => request('GET', '/api/admin/menu', null, true),
   createCategory: (payload) => request('POST', '/api/admin/categories', payload, true),
   updateCategory: (id, payload) => request('PUT', `/api/admin/categories/${id}`, payload, true),
+  reorderCategory: (id, position) => request('PUT', `/api/admin/categories/${id}/order`, { position }, true),
   deleteCategory: (id) => request('DELETE', `/api/admin/categories/${id}`, null, true),
   createItem: (payload) => request('POST', '/api/admin/items', payload, true),
   updateItem: (id, payload) => request('PUT', `/api/admin/items/${id}`, payload, true),
+  reorderItem: (id, position) => request('PUT', `/api/admin/items/${id}/order`, { position }, true),
+  setItemAvailability: (id, available) => request('PATCH', `/api/admin/items/${id}/availability`, { available }, true),
   deleteItem: (id) => request('DELETE', `/api/admin/items/${id}`, null, true),
 };

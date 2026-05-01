@@ -20,7 +20,7 @@ router.get('/menu/:slug', (req, res) => {
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    'SELECT id, name, description, price, image_url, available FROM items WHERE category_id = ? ORDER BY id ASC'
+    'SELECT id, name, description, price, image_url, available FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
   );
 
   const result = categories.map((c) => ({

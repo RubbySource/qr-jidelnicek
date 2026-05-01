@@ -48,6 +48,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_items_category ON items(category_id);
 `);
 
+const itemCols = db.prepare("PRAGMA table_info(items)").all();
+if (!itemCols.some((c) => c.name === 'position')) {
+  db.exec('ALTER TABLE items ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  db.exec(`
+    UPDATE items SET position = (
+      SELECT COUNT(*) FROM items i2
+      WHERE i2.category_id = items.category_id AND i2.id < items.id
+    )
+  `);
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_items_position ON items(category_id, position)');
+
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;
 }
