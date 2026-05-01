@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, getToken, setToken } from '../api';
+import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -132,6 +133,35 @@ function ImageField({ value, onChange }) {
   );
 }
 
+function AllergenPicker({ selected, onChange }) {
+  const set = new Set((selected || []).map(String));
+  function toggle(code) {
+    const next = new Set(set);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    onChange(Array.from(next));
+  }
+  return (
+    <div className="allergen-grid">
+      {ALLERGEN_CODES.map((code) => {
+        const active = set.has(code);
+        return (
+          <button
+            key={code}
+            type="button"
+            className={`allergen-chip ${active ? 'active' : ''}`}
+            onClick={() => toggle(code)}
+            title={allergenLabel(code, 'cs')}
+          >
+            <span className="allergen-num">{code}</span>
+            <span className="allergen-label">{ALLERGENS[code].cs}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   const [form, setForm] = useState({
     name: item?.name || '',
@@ -139,6 +169,13 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     price: item?.price ?? 0,
     image_url: item?.image_url || '',
     available: item?.available ?? true,
+    is_vegetarian: !!item?.is_vegetarian,
+    is_vegan: !!item?.is_vegan,
+    is_gluten_free: !!item?.is_gluten_free,
+    is_lactose_free: !!item?.is_lactose_free,
+    is_spicy: !!item?.is_spicy,
+    is_featured: !!item?.is_featured,
+    allergens: item?.allergens || [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -161,6 +198,10 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     }
   }
 
+  function setFlag(key) {
+    return (e) => setForm({ ...form, [key]: e.target.checked });
+  }
+
   return (
     <form onSubmit={save} className="card" style={{ background: '#f9fafb' }}>
       <label>
@@ -180,6 +221,28 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
       </label>
+      <label className="row">
+        <input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
+        ★ Doporučujeme (zobrazí se v sekci Doporučujeme nahoře)
+      </label>
+
+      <fieldset className="diet-fieldset">
+        <legend>Stravovací značky</legend>
+        <label className="row"><input type="checkbox" checked={form.is_vegetarian} onChange={setFlag('is_vegetarian')} style={{ width: 'auto', marginRight: 8 }} />Vegetariánské</label>
+        <label className="row"><input type="checkbox" checked={form.is_vegan} onChange={setFlag('is_vegan')} style={{ width: 'auto', marginRight: 8 }} />Vegan</label>
+        <label className="row"><input type="checkbox" checked={form.is_gluten_free} onChange={setFlag('is_gluten_free')} style={{ width: 'auto', marginRight: 8 }} />Bez lepku</label>
+        <label className="row"><input type="checkbox" checked={form.is_lactose_free} onChange={setFlag('is_lactose_free')} style={{ width: 'auto', marginRight: 8 }} />Bez laktózy</label>
+        <label className="row"><input type="checkbox" checked={form.is_spicy} onChange={setFlag('is_spicy')} style={{ width: 'auto', marginRight: 8 }} />Pikantní</label>
+      </fieldset>
+
+      <fieldset className="diet-fieldset">
+        <legend>Alergeny (EU)</legend>
+        <AllergenPicker
+          selected={form.allergens}
+          onChange={(allergens) => setForm({ ...form, allergens })}
+        />
+      </fieldset>
+
       {error && <p className="error">{error}</p>}
       <div className="row">
         <button className="primary" disabled={saving}>{saving ? 'Ukládám…' : 'Uložit'}</button>
@@ -234,6 +297,26 @@ function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
   );
 }
 
+function DietBadges({ item }) {
+  const flags = [
+    item.is_featured && { key: 'featured', label: '★ Doporučujeme', cls: 'badge-featured' },
+    item.is_vegetarian && { key: 'veg', label: 'Veg', cls: 'badge-veg' },
+    item.is_vegan && { key: 'vegan', label: 'Vegan', cls: 'badge-vegan' },
+    item.is_gluten_free && { key: 'gf', label: 'Bez lepku', cls: 'badge-gf' },
+    item.is_lactose_free && { key: 'lf', label: 'Bez laktózy', cls: 'badge-lf' },
+    item.is_spicy && { key: 'spicy', label: 'Pikantní', cls: 'badge-spicy' },
+  ].filter(Boolean);
+  if (flags.length === 0 && (!item.allergens || item.allergens.length === 0)) return null;
+  return (
+    <div className="badges">
+      {flags.map((f) => <span key={f.key} className={`badge ${f.cls}`}>{f.label}</span>)}
+      {item.allergens && item.allergens.length > 0 && (
+        <span className="badge badge-allergen">Alergeny: {item.allergens.join(', ')}</span>
+      )}
+    </div>
+  );
+}
+
 function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
   return (
     <div
@@ -244,8 +327,9 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
       <span className="drag-handle" title="Přetáhnout pro změnu pořadí" {...dragHandlers}>⋮⋮</span>
       {item.image_url && <img src={item.image_url} alt="" className="thumb" />}
       <div className="item-info">
-        <div className="item-name">{item.name}</div>
+        <div className="item-name">{item.name} {!item.available && <span className="muted">(nedostupné)</span>}</div>
         {item.description && <div className="item-desc">{item.description}</div>}
+        <DietBadges item={item} />
       </div>
       <div className="row">
         <span className="item-price">{Number(item.price).toLocaleString('cs-CZ')} Kč</span>
@@ -272,6 +356,7 @@ function Dashboard({ restaurant, onLogout }) {
   const [addingTo, setAddingTo] = useState(null);
   const dragRef = useRef({ kind: null, id: null, categoryId: null });
   const [dragKey, setDragKey] = useState(null);
+  const [seeding, setSeeding] = useState(false);
 
   async function load() {
     try {
@@ -306,6 +391,26 @@ function Dashboard({ restaurant, onLogout }) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
+  }
+  async function moveCategory(id, direction) {
+    await api.moveCategory(id, direction);
+    load();
+  }
+  async function moveItem(id, direction) {
+    await api.moveItem(id, direction);
+    load();
+  }
+  async function loadDemo() {
+    if (!confirm('Načíst ukázkové menu? Funguje pouze pokud je menu prázdné.')) return;
+    setSeeding(true);
+    try {
+      await api.seedDemo();
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSeeding(false);
+    }
   }
 
   async function toggleAvailable(item, available) {
@@ -377,6 +482,7 @@ function Dashboard({ restaurant, onLogout }) {
   if (!data) return <p>Načítání…</p>;
 
   const publicUrl = `${window.location.origin}/menu/${restaurant.slug}`;
+  const categories = data.categories;
 
   return (
     <div>
@@ -397,7 +503,15 @@ function Dashboard({ restaurant, onLogout }) {
             </a>
           </div>
           <img className="qr-img" src={api.qrUrl(restaurant.slug)} alt="QR kód" />
-          <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. Zákazníci ho načtou mobilem.</p>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <a className="btn" href={api.qrUrl(restaurant.slug, { size: 1024, download: true })} download>
+              Stáhnout PNG (1024 px)
+            </a>
+            <a className="btn" href={api.qrUrl(restaurant.slug, { format: 'svg', download: true })} download>
+              Stáhnout SVG (vektor)
+            </a>
+          </div>
+          <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. SVG je ideální pro tiskárnu (libovolná velikost beze ztráty kvality).</p>
         </div>
 
         <h2>Kategorie a položky</h2>
@@ -411,11 +525,16 @@ function Dashboard({ restaurant, onLogout }) {
           <button className="primary">Přidat kategorii</button>
         </form>
 
-        {data.categories.length === 0 && (
-          <p className="muted">Zatím žádné kategorie. Začněte přidáním první.</p>
+        {categories.length === 0 && (
+          <div className="card">
+            <p className="muted">Zatím žádné kategorie. Začněte přidáním první — nebo si načtěte ukázkové menu, ať vidíte, jak to vypadá.</p>
+            <button onClick={loadDemo} disabled={seeding}>
+              {seeding ? 'Načítám…' : 'Načíst ukázkové menu'}
+            </button>
+          </div>
         )}
 
-        {data.categories.map((c) => (
+        {categories.map((c) => (
           <div
             className={`card ${dragKey === `cat-${c.id}` ? 'card-dragging' : ''}`}
             key={c.id}
@@ -437,7 +556,7 @@ function Dashboard({ restaurant, onLogout }) {
               <p className="muted" style={{ marginTop: 12 }}>Zatím žádné položky.</p>
             )}
 
-            {c.items.map((it) => (
+            {c.items.map((it, ii) => (
               <div key={it.id}>
                 {editingItem?.id === it.id ? (
                   <ItemEditor
