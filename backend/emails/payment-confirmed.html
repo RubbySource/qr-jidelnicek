@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <title>Platba potvrzena</title>
+</head>
+<body style="margin:0;padding:24px;background:#f7f7f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.6;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="background:#15803d;color:#ffffff;padding:24px;text-align:center;">
+        <h1 style="margin:0;font-size:22px;">Děkujeme — platba potvrzena</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px;">
+        <p>Dobrý den,</p>
+        <p>obdrželi jsme platbu pro restauraci <strong>{{restaurantName}}</strong>. Vaše předplatné je aktivní a vaše menu je opět dostupné pro zákazníky.</p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;border-collapse:collapse;">
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;">Plán:</td>
+            <td style="padding:8px 0;text-align:right;"><strong>QR Jídelníček Pro</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;">Částka:</td>
+            <td style="padding:8px 0;text-align:right;"><strong>{{amount}} Kč</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;">Další platba:</td>
+            <td style="padding:8px 0;text-align:right;"><strong>{{nextBillingAt}}</strong></td>
+          </tr>
+        </table>
+
+        <p style="text-align:center;margin:32px 0;">
+          <a href="{{adminUrl}}" style="display:inline-block;background:#b91c1c;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Otevřít administraci</a>
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
