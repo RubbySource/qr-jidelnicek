@@ -3,111 +3,158 @@
 Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 
 ## Stack
-- Backend: Node.js + Express + SQLite (vestavěný `node:sqlite`, vyžaduje Node 22.5+)
-- Frontend: React + Vite
-- Auth: JWT (bcryptjs pro hesla)
-- QR: `qrcode` npm balíček
+- **Backend**: Node.js (≥ 22.5) + Express + vestavěný `node:sqlite`
+- **Frontend**: React 18 + Vite (build se servíruje přímo z backendu)
+- **Auth**: JWT (`jsonwebtoken`) + `bcryptjs`
+- **QR**: `qrcode` npm balíček
+- **Billing**: Stripe (Checkout + webhooky) — volitelné
+- **E-mail**: Resend + HTML šablony v `backend/emails/` — volitelné
 
 ## Funkce
 - Veřejné mobilní menu dostupné přes QR kód
-- Admin rozhraní pro správu kategorií a položek
+- Admin dashboard: CRUD kategorií/položek, drag-drop řazení, base64 upload obrázků, toggle dostupnosti, preview
 - **Stravovací značky** — vegetariánské, vegan, bez lepku, bez laktózy, pikantní
-- **Alergeny** dle EU nařízení 1169/2011 (kódy 1–14)
-- **Doporučujeme** — položky označené jako doporučené se zobrazí ve vlastní sekci nahoře na veřejném menu
-- **Vyhledávání a filtrování** položek na veřejném menu
-- **Vícejazyčné UI** — čeština / angličtina (přepínač přímo v menu)
-- **Změna pořadí** kategorií i položek
-- **Stažení QR kódu** v PNG (1024 px) i SVG (vektor pro tisk)
-- **Ukázkové menu** — jedním klikem naplníte vzorová data k vyzkoušení
-- Mobile-first design
+- **Alergeny** dle EU 1169/2011 (kódy 1–14)
+- **Doporučujeme** — vlastní sekce nahoře v menu
+- **Vyhledávání a filtrování** v menu
+- **CS / EN** přepínač
+- **QR ke stažení** v PNG (1024 px) i SVG
+- **Stripe billing** — měsíční předplatné 199 Kč, trial, webhooky pro aktivaci/expiraci
+- **Transakční e-maily** — payment-confirmed, trial-expiring (Resend, dry-run režim bez API klíče)
+- **Ukázkové menu** — `/api/admin/seed-demo`
 
 ## Struktura
 ```
 qr-jidelnicek/
-├── backend/    # API server (port 3001)
-└── frontend/   # React app (port 5173)
+├── backend/        # Express API (port 3001) + servíruje frontend/dist
+│   ├── emails/     # HTML šablony pro Resend
+│   └── src/
+│       ├── server.js
+│       ├── db.js
+│       ├── auth.js
+│       ├── email.js
+│       ├── menu.js
+│       └── routes/
+├── frontend/       # React + Vite (dev port 5173, prod → backend/dist)
+├── package.json    # root deploy manifest (Railway / Heroku-style)
+├── Procfile
+└── railway.json
 ```
 
-## Spuštění (dev)
+## Spuštění lokálně (single-process — backend servíruje frontend)
 
-### Backend
+```bash
+cd backend && npm install
+cd ../frontend && npm install && npm run build
+cd ../backend && node src/server.js
+```
+
+Aplikace pak poběží na `http://localhost:3001` — backend obsluhuje `/api/*` routy a zároveň servíruje statický `frontend/dist/`. React Router fallback (`*` → `index.html`) je už zapojený, takže `/admin` a `/menu/:slug` fungují i po reloadu.
+
+## Spuštění lokálně (dev — split, hot reload)
+
+V jednom terminálu:
 ```bash
 cd backend
-cp .env.example .env
+cp ../.env.example .env   # uprav podle sebe
 npm install
-npm run dev
+npm run dev               # node --watch src/server.js
 ```
 
-### Frontend
+V druhém terminálu:
 ```bash
 cd frontend
-cp .env.example .env   # produkční build → nastavit VITE_API_URL
+cp .env.example .env      # v devu nech VITE_API_URL prázdné — Vite proxyuje /api → :3001
 npm install
-npm run dev
+npm run dev               # vite, port 5173
 ```
+
+## Environment proměnné
+
+V kořeni `.env.example`:
+
+| Proměnná | Default | Popis |
+|---|---|---|
+| `PORT` | `3001` | Port backendu |
+| `JWT_SECRET` | `change-me-in-production` | Klíč pro podepisování JWT — v produkci nastav silný náhodný řetězec |
+| `DATABASE_URL` | `file:./data/qr-jidelnicek.sqlite` | Cesta k SQLite souboru |
+| `PUBLIC_BASE_URL` | `http://localhost:5173` | Použito pro `success_url`/`cancel_url` Stripe Checkoutu a odkazy v e-mailech |
+| `STRIPE_SECRET_KEY` | _(volitelné)_ | Bez něj `/api/billing/*` vrací 503 |
+| `STRIPE_WEBHOOK_SECRET` | _(volitelné)_ | Bez něj se webhook signature neověřuje (jen JSON parse) |
+| `RESEND_API_KEY` | _(volitelné)_ | Bez něj jdou e-maily do dry-run režimu (jen log) |
+| `EMAIL_FROM` | `QR Jidelnicek <onboarding@resend.dev>` | Odesílatel transakčních e-mailů |
+
+Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech prázdné, v produkci stejné nech, pokud běží jako single-process — všechna API volání jsou relativní (`/api/...`).
 
 ## API endpointy
 
 ### Veřejné
 - `GET  /api/health`
-- `GET  /api/menu/:slug` — JSON menu pro zákazníka (včetně alergenů a stravovacích značek)
-- `GET  /api/qr/:slug?size=1024&format=png|svg&download=1` — QR kód v PNG/SVG, volitelně s `Content-Disposition` pro stažení
+- `GET  /api/menu/:slug` — JSON menu zákazníka (kategorie + položky + alergeny + značky)
+- `GET  /api/qr/:slug?size=1024&format=png|svg&download=1` — QR kód
 
 ### Auth
 - `POST /api/auth/register` — `{ name, email, password, slug? }`
 - `POST /api/auth/login` — `{ email, password }`
 
-### Admin (Bearer token v hlavičce)
+### Admin (Bearer token)
 - `GET    /api/admin/me`
 - `GET    /api/admin/menu`
 - `POST   /api/admin/categories`
 - `PUT    /api/admin/categories/:id`
-- `DELETE /api/admin/categories/:id`
+- `PUT    /api/admin/categories/:id/order` — `{ position }` (drag-drop)
 - `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
+- `DELETE /api/admin/categories/:id`
 - `POST   /api/admin/items`
 - `PUT    /api/admin/items/:id`
-- `DELETE /api/admin/items/:id`
+- `PUT    /api/admin/items/:id/order` — `{ position }`
+- `PATCH  /api/admin/items/:id/availability` — `{ available }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
-- `POST   /api/admin/seed-demo` — naplní prázdné menu ukázkovými daty
+- `DELETE /api/admin/items/:id`
+- `POST   /api/admin/seed-demo`
+
+### Billing (Stripe)
+- `GET  /api/billing/status` — info o předplatném, trial dnech zbývajících
+- `POST /api/billing/checkout` — vytvoří Stripe Checkout Session, vrátí `{ url }`
+- `POST /api/billing/webhook` — Stripe webhook (raw body, vyžaduje `STRIPE_WEBHOOK_SECRET` pro signature check)
 
 ## Datový model položky
-
-Každé jídlo má kromě názvu, ceny a popisu i:
-- `available` — dostupné / vyprodané
-- `is_vegetarian`, `is_vegan`, `is_gluten_free`, `is_lactose_free`, `is_spicy` — booleany
-- `is_featured` — boolean; položka se zobrazí v sekci "Doporučujeme" nahoře
-- `allergens` — pole kódů alergenů (`["1", "3", "7"]`) podle EU 1169/2011
+- `available` — dostupné / vyprodané (toggle v adminu)
+- `is_vegetarian`, `is_vegan`, `is_gluten_free`, `is_lactose_free`, `is_spicy`
+- `is_featured` — zobrazí se v sekci "Doporučujeme" nahoře
+- `allergens` — pole kódů (`["1", "3", "7"]`)
+- `image_base64` — obrázek inline (uploaduje se jako data-URL)
 
 ## Cesty ve frontendu
 - `/` — landing
-- `/admin` — login + dashboard
-- `/menu/:slug` — veřejné menu (mobile-first, CS/EN, vyhledávání, filtry)
+- `/admin` — login / dashboard
+- `/menu/:slug` — veřejné menu (CS/EN, vyhledávání, filtry)
 
 ## Deploy na Railway
 
-### Předpoklady
-- Účet na [Railway](https://railway.app)
-- Repo napojené na GitHub (Railway umí auto-deploy z `main`)
-
-### Konfigurace v repu
-- `railway.json` — Nixpacks builder, `npm run build` + `npm run start`
-- `Procfile` — `web: node backend/server.js` (kompatibilita s Heroku-style platformami)
-- `package.json` v rootu — `build` instaluje deps v `backend/` a `frontend/` a buildne frontend; `start` spouští backend
-- `.env.example` v rootu — šablona pro Railway env vars
+Detaily v [`railway.json`](./railway.json) a [`package.json`](./package.json) (root manifest).
 
 ### Postup
-1. **Vytvoř projekt** v Railway → *New Project* → *Deploy from GitHub repo* → vyber `qr-jidelnicek`.
-2. **Nastav environment variables** v záložce *Variables* podle `.env.example`:
-   - `PORT` — Railway si typicky injektuje vlastní `PORT`, není třeba přepisovat
-   - `JWT_SECRET` — vygeneruj silný náhodný řetězec (např. `openssl rand -hex 32`)
-   - `DATABASE_URL` — cesta k SQLite souboru, např. `file:./data/qr-jidelnicek.sqlite`
-3. **Persistent storage** — pro SQLite přidej v Railway *Volume* a namountuj ho na `/app/data`, jinak se DB ztratí při redeployi.
-4. **Deploy** — Railway automaticky detekuje `railway.json`, spustí build a nasadí službu. Veřejnou URL najdeš v záložce *Settings → Networking → Generate Domain*.
-5. **Custom doména** (volitelné) — *Settings → Networking → Custom Domain*, přidej CNAME na poskytnutou Railway URL.
+1. **New Project** → *Deploy from GitHub repo* → vyber `qr-jidelnicek`.
+2. **Variables** podle `.env.example`:
+   - `JWT_SECRET` — `openssl rand -hex 32`
+   - `DATABASE_URL` — např. `file:/app/data/qr-jidelnicek.sqlite`
+   - `PUBLIC_BASE_URL` — veřejná URL projektu
+   - Stripe / Resend klíče dle potřeby
+3. **Volume** — namountuj na `/app/data` (jinak SQLite zmizí při redeployi).
+4. **Deploy** — Railway si přečte `railway.json` (NIXPACKS, `npm run build` → `npm run start`).
+5. **Stripe webhook** — v Stripe dashboardu nastav endpoint `https://<tvoje-domena>/api/billing/webhook` a `STRIPE_WEBHOOK_SECRET` zkopíruj do Variables.
 
 ### Lokální simulace produkčního buildu
 ```bash
-npm install
-npm run build
-npm run start
+npm install        # spustí postinstall pro backend i frontend
+npm run build      # vite build → frontend/dist/
+npm run start      # node backend/src/server.js — servíruje API i SPA na :3001
 ```
+
+## Smoke testy
+
+```bash
+cd backend && npm install && node test.js
+```
+Pokrývá registraci, login, CRUD kategorií/položek, řazení, dostupnost, public menu, QR endpoint.
