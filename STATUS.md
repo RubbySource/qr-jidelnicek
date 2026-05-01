@@ -46,15 +46,21 @@ Pokrytí:
 
 Mimo scope této úlohy. Backend API je připraven, frontend volá `/api/*` na portu 3001 (CORS je povolen widely v `server.js`).
 
+## Otevřené P1 (z předchozího auditu, stále platné)
+
+- **CORS allowlist:** `app.use(cors())` v `backend/src/server.js` povoluje všechny originy. Pro produkci nastavit konkrétní frontend doménu.
+- **Rate-limiting:** `/api/auth/login` a `/api/auth/register` nejsou nijak omezené → brute-force riziko. Doporučeno `express-rate-limit` (např. 10 pokusů/min na IP).
+- **DB backup:** Railway Volume zachová SQLite mezi redeploys, ale strategie zálohy (cron + S3 / off-site) zatím není definovaná.
+- **Validace vstupů:** backend přijímá `req.body` bez Zod/Joi schémat. Funkčně to funguje, ale nemá centrální validaci ani limit délky textů.
+- **Strukturované logování:** jen `console.error` v error handleru. Pro produkci pino/winston.
+
 ## Další kroky (návrh)
 
 - CI workflow, který spustí `node test.js` na PR.
 - Rate-limit na `/api/auth/*`.
 - Integrační test pro admin CRUD (kategorie, položky).
+- Stripe billing (schéma má prázdný `stripe_customer_id`).
 
 ## PR
 
-Branch `claude/backend-stabilizace` je pushnutý na origin. PR vytvoř ručně (gh CLI v této session nebyl autentizován):
-<https://github.com/RubbySource/qr-jidelnicek/pull/new/claude/backend-stabilizace>
-
-Tip pro příště: `gh auth login` jednorázově, nebo nastavit `GH_TOKEN` v env, a pak `gh pr create` projde non-interaktivně.
+PR #4: <https://github.com/RubbySource/qr-jidelnicek/pull/4>
