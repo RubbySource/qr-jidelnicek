@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, getToken, setToken } from '../api';
 
 function AuthForm({ onAuth }) {
@@ -392,12 +393,20 @@ function Dashboard({ restaurant, onLogout }) {
               <strong>Veřejné menu:</strong>{' '}
               <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
             </div>
-            <a className="btn primary" href={publicUrl} target="_blank" rel="noreferrer">
-              Zobrazit jako zákazník ↗
-            </a>
+            <div className="row">
+              <a className="btn" href={publicUrl} target="_blank" rel="noreferrer">
+                Zobrazit jako zákazník ↗
+              </a>
+              <Link className="btn primary" to={`/qr/${restaurant.slug}`}>
+                📥 QR kód
+              </Link>
+            </div>
           </div>
           <img className="qr-img" src={api.qrUrl(restaurant.slug)} alt="QR kód" />
-          <p className="muted">Vytiskněte si QR kód a umístěte ho na stůl. Zákazníci ho načtou mobilem.</p>
+          <p className="muted">
+            Vytiskněte si QR kód a umístěte ho na stůl. Zákazníci ho načtou mobilem.{' '}
+            <Link to={`/qr/${restaurant.slug}`}>Stáhnout v PNG / SVG / PDF →</Link>
+          </p>
         </div>
 
         <h2>Kategorie a položky</h2>
