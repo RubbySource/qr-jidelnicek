@@ -77,6 +77,13 @@ if (!hasColumn('items', 'position')) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_items_position ON items(category_id, position)');
 
+if (!hasColumn('items', 'name_en')) {
+  db.exec('ALTER TABLE items ADD COLUMN name_en TEXT DEFAULT NULL');
+}
+if (!hasColumn('items', 'description_en')) {
+  db.exec('ALTER TABLE items ADD COLUMN description_en TEXT DEFAULT NULL');
+}
+
 if (!hasColumn('restaurants', 'subscription_status')) {
   db.exec("ALTER TABLE restaurants ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'");
 }

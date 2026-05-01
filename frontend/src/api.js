@@ -31,7 +31,7 @@ async function request(method, path, body, auth) {
 }
 
 export const api = {
-  getMenu: (slug) => request('GET', `/api/menu/${slug}`),
+  getMenu: (slug, lang) => request('GET', `/api/menu/${slug}${lang ? `?lang=${encodeURIComponent(lang)}` : ''}`),
   qrUrl: (slug, opts = {}) => {
     const params = new URLSearchParams();
     if (opts.size) params.set('size', String(opts.size));

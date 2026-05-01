@@ -139,6 +139,8 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     price: item?.price ?? 0,
     image_url: item?.image_url || '',
     available: item?.available ?? true,
+    name_en: item?.name_en || '',
+    description_en: item?.description_en || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -148,10 +150,15 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     setSaving(true);
     setError(null);
     try {
+      const payload = {
+        ...form,
+        name_en: form.name_en.trim() || null,
+        description_en: form.description_en.trim() || null,
+      };
       if (item) {
-        await api.updateItem(item.id, form);
+        await api.updateItem(item.id, payload);
       } else {
-        await api.createItem({ ...form, category_id: categoryId });
+        await api.createItem({ ...payload, category_id: categoryId });
       }
       onSaved();
     } catch (err) {
@@ -176,6 +183,28 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <input type="number" min="0" step="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
       </label>
       <ImageField value={form.image_url} onChange={(v) => setForm({ ...form, image_url: v })} />
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid #e5e7eb', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13, color: '#6b7280' }}>
+          Anglická verze (volitelné — pro anglické menu)
+        </legend>
+        <label>
+          <span>Název (EN)</span>
+          <input
+            value={form.name_en}
+            onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+            placeholder="e.g. Beef goulash"
+          />
+        </label>
+        <label>
+          <span>Popis (EN)</span>
+          <textarea
+            rows={2}
+            value={form.description_en}
+            onChange={(e) => setForm({ ...form, description_en: e.target.value })}
+            placeholder="e.g. with bread dumplings"
+          />
+        </label>
+      </fieldset>
       <label className="row" style={{ marginTop: 12 }}>
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
