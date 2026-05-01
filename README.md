@@ -3,10 +3,23 @@
 Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 
 ## Stack
-- Backend: Node.js + Express + SQLite (better-sqlite3)
+- Backend: Node.js + Express + SQLite (vestavěný `node:sqlite`, vyžaduje Node 22.5+)
 - Frontend: React + Vite
 - Auth: JWT (bcrypt pro hesla)
 - QR: `qrcode` npm balíček
+
+## Funkce
+- Veřejné mobilní menu dostupné přes QR kód
+- Admin rozhraní pro správu kategorií a položek
+- **Stravovací značky** — vegetariánské, vegan, bez lepku, bez laktózy, pikantní
+- **Alergeny** dle EU nařízení 1169/2011 (kódy 1–14)
+- **Doporučujeme** — položky označené jako doporučené se zobrazí ve vlastní sekci nahoře na veřejném menu
+- **Vyhledávání a filtrování** položek na veřejném menu
+- **Vícejazyčné UI** — čeština / angličtina (přepínač přímo v menu)
+- **Změna pořadí** kategorií i položek
+- **Stažení QR kódu** v PNG (1024 px) i SVG (vektor pro tisk)
+- **Ukázkové menu** — jedním klikem naplníte vzorová data k vyzkoušení
+- Mobile-first design
 
 ## Struktura
 ```
@@ -36,8 +49,8 @@ npm run dev
 
 ### Veřejné
 - `GET  /api/health`
-- `GET  /api/menu/:slug` — JSON menu pro zákazníka
-- `GET  /api/qr/:slug` — PNG s QR kódem směřujícím na `/menu/:slug`
+- `GET  /api/menu/:slug` — JSON menu pro zákazníka (včetně alergenů a stravovacích značek)
+- `GET  /api/qr/:slug?size=1024&format=png|svg&download=1` — QR kód v PNG/SVG, volitelně s `Content-Disposition` pro stažení
 
 ### Auth
 - `POST /api/auth/register` — `{ name, email, password, slug? }`
@@ -49,14 +62,25 @@ npm run dev
 - `POST   /api/admin/categories`
 - `PUT    /api/admin/categories/:id`
 - `DELETE /api/admin/categories/:id`
+- `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
 - `POST   /api/admin/items`
 - `PUT    /api/admin/items/:id`
 - `DELETE /api/admin/items/:id`
+- `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
+- `POST   /api/admin/seed-demo` — naplní prázdné menu ukázkovými daty
+
+## Datový model položky
+
+Každé jídlo má kromě názvu, ceny a popisu i:
+- `available` — dostupné / vyprodané
+- `is_vegetarian`, `is_vegan`, `is_gluten_free`, `is_lactose_free`, `is_spicy` — booleany
+- `is_featured` — boolean; položka se zobrazí v sekci "Doporučujeme" nahoře
+- `allergens` — pole kódů alergenů (`["1", "3", "7"]`) podle EU 1169/2011
 
 ## Cesty ve frontendu
 - `/` — landing
 - `/admin` — login + dashboard
-- `/menu/:slug` — veřejné menu (mobile-first)
+- `/menu/:slug` — veřejné menu (mobile-first, CS/EN, vyhledávání, filtry)
 
 ## Deploy na Railway
 

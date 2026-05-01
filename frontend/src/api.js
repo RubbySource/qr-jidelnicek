@@ -27,7 +27,14 @@ async function request(method, url, body, auth) {
 
 export const api = {
   getMenu: (slug) => request('GET', `/api/menu/${slug}`),
-  qrUrl: (slug) => `/api/qr/${slug}`,
+  qrUrl: (slug, opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.size) params.set('size', String(opts.size));
+    if (opts.format) params.set('format', opts.format);
+    if (opts.download) params.set('download', '1');
+    const qs = params.toString();
+    return `/api/qr/${slug}${qs ? `?${qs}` : ''}`;
+  },
   register: (payload) => request('POST', '/api/auth/register', payload),
   login: (payload) => request('POST', '/api/auth/login', payload),
   me: () => request('GET', '/api/admin/me', null, true),
@@ -35,7 +42,10 @@ export const api = {
   createCategory: (payload) => request('POST', '/api/admin/categories', payload, true),
   updateCategory: (id, payload) => request('PUT', `/api/admin/categories/${id}`, payload, true),
   deleteCategory: (id) => request('DELETE', `/api/admin/categories/${id}`, null, true),
+  moveCategory: (id, direction) => request('POST', `/api/admin/categories/${id}/move`, { direction }, true),
   createItem: (payload) => request('POST', '/api/admin/items', payload, true),
   updateItem: (id, payload) => request('PUT', `/api/admin/items/${id}`, payload, true),
   deleteItem: (id) => request('DELETE', `/api/admin/items/${id}`, null, true),
+  moveItem: (id, direction) => request('POST', `/api/admin/items/${id}/move`, { direction }, true),
+  seedDemo: () => request('POST', '/api/admin/seed-demo', {}, true),
 };
