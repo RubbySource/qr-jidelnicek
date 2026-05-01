@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
@@ -122,7 +122,7 @@ function ImageField({ value, onChange }) {
 
   return (
     <div>
-      <span style={{ display: 'block', marginBottom: 4, fontSize: 14, color: '#374151' }}>Obrázek</span>
+      <span style={{ display: 'block', marginBottom: 4, fontSize: 14 }}>Obrázek</span>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         {value && <img src={value} alt="Náhled" className="thumb" />}
         <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} disabled={busy} style={{ flex: 1, minWidth: 200 }} />
@@ -173,7 +173,7 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   }
 
   return (
-    <form onSubmit={save} className="card" style={{ background: '#f9fafb' }}>
+    <form onSubmit={save} className="card">
       <label>
         <span>Název</span>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -187,8 +187,8 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
         <input type="number" min="0" step="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
       </label>
       <ImageField value={form.image_url} onChange={(v) => setForm({ ...form, image_url: v })} />
-      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid #e5e7eb', borderRadius: 6 }}>
-        <legend style={{ padding: '0 6px', fontSize: 13, color: '#6b7280' }}>
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>
           Anglická verze (volitelné — pro anglické menu)
         </legend>
         <label>
@@ -578,6 +578,19 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
 export default function Admin() {
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Dark theme — applied at body level so it can't be overridden by anything
+  useLayoutEffect(() => {
+    document.body.classList.add('admin-dark');
+    // Also force inline style on body as extra insurance
+    document.body.style.background = '#0f172a';
+    document.body.style.color = '#f8fafc';
+    return () => {
+      document.body.classList.remove('admin-dark');
+      document.body.style.background = '';
+      document.body.style.color = '';
+    };
+  }, []);
 
   useEffect(() => {
     if (!getToken()) { setLoading(false); return; }

@@ -202,3 +202,209 @@ label > span { display: block; margin-bottom: 4px; }
   border-bottom-color: #b91c1c;
   font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════
+   ADMIN DARK THEME
+   Applied via body.admin-dark (set by Admin.jsx useEffect)
+   ═══════════════════════════════════════════════ */
+
+body.admin-dark {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+body.admin-dark #root {
+  background: #0f172a;
+  min-height: 100vh;
+}
+
+body.admin-dark .card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  color: #f8fafc;
+}
+
+body.admin-dark .admin-bar {
+  background: rgba(15, 23, 42, 0.98) !important;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.admin-dark .admin-bar h1 {
+  color: #f8fafc;
+}
+
+body.admin-dark .admin-bar button {
+  background: transparent !important;
+  color: #f8fafc !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+
+body.admin-dark .admin-bar button:hover {
+  background: rgba(99, 102, 241, 0.1) !important;
+}
+
+body.admin-dark input,
+body.admin-dark textarea,
+body.admin-dark select {
+  background: rgba(15, 23, 42, 0.7) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #f8fafc !important;
+}
+
+body.admin-dark input::placeholder,
+body.admin-dark textarea::placeholder {
+  color: #475569 !important;
+}
+
+body.admin-dark input:focus,
+body.admin-dark textarea:focus,
+body.admin-dark select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+  outline: none !important;
+}
+
+body.admin-dark label {
+  color: #cbd5e1 !important;
+}
+
+body.admin-dark button,
+body.admin-dark .btn {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #f8fafc !important;
+}
+
+body.admin-dark button:hover,
+body.admin-dark .btn:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+}
+
+body.admin-dark button.primary,
+body.admin-dark .btn.primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+body.admin-dark button.primary:hover,
+body.admin-dark .btn.primary:hover {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+}
+
+body.admin-dark button.danger {
+  background: transparent !important;
+  color: #f87171 !important;
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
+
+body.admin-dark button.danger:hover {
+  background: rgba(248, 113, 113, 0.1) !important;
+}
+
+body.admin-dark h1,
+body.admin-dark h2,
+body.admin-dark h3 {
+  color: #f8fafc !important;
+}
+
+body.admin-dark a {
+  color: #818cf8 !important;
+}
+
+body.admin-dark a:hover {
+  color: #a5b4fc !important;
+}
+
+body.admin-dark .muted {
+  color: #94a3b8 !important;
+}
+
+body.admin-dark .error {
+  color: #f87171 !important;
+}
+
+body.admin-dark .tabs {
+  border-bottom-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+body.admin-dark .tab {
+  color: #94a3b8 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+body.admin-dark .tab:hover {
+  color: #f8fafc !important;
+  background: transparent !important;
+}
+
+body.admin-dark .tab-active {
+  color: #818cf8 !important;
+  border-bottom-color: #6366f1 !important;
+}
+
+body.admin-dark .item {
+  border-bottom-color: rgba(99, 102, 241, 0.12) !important;
+}
+
+body.admin-dark .item-desc {
+  color: #94a3b8 !important;
+}
+
+body.admin-dark fieldset {
+  border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+body.admin-dark legend {
+  color: #94a3b8 !important;
+}
+
+body.admin-dark .drag-handle {
+  color: #475569 !important;
+}
+
+body.admin-dark .drag-handle:active {
+  color: #94a3b8 !important;
+}
+
+body.admin-dark .thumb {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+body.admin-dark .qr-img {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  background: #fff;
+  border-radius: 8px;
+}
+
+body.admin-dark .switch .slider {
+  background: #334155 !important;
+}
+
+body.admin-dark .switch input:checked + .slider {
+  background: #6366f1 !important;
+}
+
+body.admin-dark input[type="file"] {
+  color: #94a3b8 !important;
+  background: rgba(15, 23, 42, 0.4) !important;
+}
+
+body.admin-dark input[type="checkbox"] {
+  accent-color: #6366f1;
+}
+
+/* Auth form (login/register) — centered dark card */
+body.admin-dark .container {
+  color: #f8fafc;
+}
+
+body.admin-dark p.muted {
+  color: #94a3b8 !important;
+}

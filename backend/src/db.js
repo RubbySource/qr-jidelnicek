@@ -105,16 +105,26 @@ if (!hasColumn('restaurants', 'plan_expires_at')) {
 }
 if (!hasColumn('restaurants', 'custom_slug')) {
   try {
-    db.exec('ALTER TABLE restaurants ADD COLUMN custom_slug TEXT UNIQUE');
+    // SQLite doesn't support ADD COLUMN with UNIQUE — add without constraint, then create index below
+    db.exec('ALTER TABLE restaurants ADD COLUMN custom_slug TEXT');
   } catch (err) {
-    console.error('ALTER restaurants ADD custom_slug failed:', err);
+    if (!/duplicate column/i.test(err.message)) {
+      console.error('ALTER restaurants ADD custom_slug failed:', err);
+    }
   }
 }
-db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_custom_slug ON restaurants(custom_slug) WHERE custom_slug IS NOT NULL');
+// Only create index if the column actually exists now
+if (hasColumn('restaurants', 'custom_slug')) {
+  try {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_custom_slug ON restaurants(custom_slug) WHERE custom_slug IS NOT NULL');
+  } catch (err) {
+    console.error('idx_restaurants_custom_slug index failed:', err);
+  }
+}
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;
 }
 
 module.exports = db;
-module.exports.toNum = toNum;
+module.exports.toN
