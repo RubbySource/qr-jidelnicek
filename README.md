@@ -81,3 +81,32 @@ Každé jídlo má kromě názvu, ceny a popisu i:
 - `/` — landing
 - `/admin` — login + dashboard
 - `/menu/:slug` — veřejné menu (mobile-first, CS/EN, vyhledávání, filtry)
+
+## Deploy na Railway
+
+### Předpoklady
+- Účet na [Railway](https://railway.app)
+- Repo napojené na GitHub (Railway umí auto-deploy z `main`)
+
+### Konfigurace v repu
+- `railway.json` — Nixpacks builder, `npm run build` + `npm run start`
+- `Procfile` — `web: node backend/server.js` (kompatibilita s Heroku-style platformami)
+- `package.json` v rootu — `build` instaluje deps v `backend/` a `frontend/` a buildne frontend; `start` spouští backend
+- `.env.example` v rootu — šablona pro Railway env vars
+
+### Postup
+1. **Vytvoř projekt** v Railway → *New Project* → *Deploy from GitHub repo* → vyber `qr-jidelnicek`.
+2. **Nastav environment variables** v záložce *Variables* podle `.env.example`:
+   - `PORT` — Railway si typicky injektuje vlastní `PORT`, není třeba přepisovat
+   - `JWT_SECRET` — vygeneruj silný náhodný řetězec (např. `openssl rand -hex 32`)
+   - `DATABASE_URL` — cesta k SQLite souboru, např. `file:./data/qr-jidelnicek.sqlite`
+3. **Persistent storage** — pro SQLite přidej v Railway *Volume* a namountuj ho na `/app/data`, jinak se DB ztratí při redeployi.
+4. **Deploy** — Railway automaticky detekuje `railway.json`, spustí build a nasadí službu. Veřejnou URL najdeš v záložce *Settings → Networking → Generate Domain*.
+5. **Custom doména** (volitelné) — *Settings → Networking → Custom Domain*, přidej CNAME na poskytnutou Railway URL.
+
+### Lokální simulace produkčního buildu
+```bash
+npm install
+npm run build
+npm run start
+```
