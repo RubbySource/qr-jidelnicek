@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const billingRoutes = require('./routes/billingRoutes');
+const stripeRoutes = require('./routes/stripeRoutes');
 const emailService = require('./services/emailService');
 
 async function checkTrialExpiry() {
@@ -56,6 +57,12 @@ app.post(
   billingRoutes.handleWebhook
 );
 
+app.post(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeRoutes.handleStripeWebhook
+);
+
 app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, name: 'QR Jidelnicek Pro' }));
@@ -64,6 +71,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 const distDir = path.resolve(__dirname, '../../frontend/dist');
 if (fs.existsSync(distDir)) {
