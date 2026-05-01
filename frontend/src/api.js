@@ -56,4 +56,5 @@ export const api = {
   deleteItem: (id) => request('DELETE', `/api/admin/items/${id}`, null, true),
   moveItem: (id, direction) => request('POST', `/api/admin/items/${id}/move`, { direction }, true),
   seedDemo: () => request('POST', '/api/admin/seed-demo', {}, true),
+  analytics: () => request('GET', '/api/admin/analytics', null, true),
 };
