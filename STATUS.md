@@ -1,65 +1,46 @@
 # STATUS — QR Jidelnicek Pro
 
-_Last updated: 2026-05-01 (backend stabilizace + smoke testy)_
+_Last updated: 2026-05-01 (merge všech claude/* větví do main)_
 
-## Backend — funguje ✅
+## Stav main
 
-- **Runtime:** Node.js v24.14.1 (WSL Ubuntu)
-- **DB:** `node:sqlite` (built-in, experimental warning je očekávaný) — žádný native build, žádné `better-sqlite3`
-- **Start:** `node src/server.js` → `QR Jidelnicek API listening on http://localhost:3001`
-- **Schema init:** ON START — `restaurants`, `menus`, `categories`, `items` se vytvoří přes `CREATE TABLE IF NOT EXISTS`. WAL mode + `PRAGMA foreign_keys = ON`.
-- **`npm install`:** ~3 s, 116 packages, 0 vulnerabilities. Žádné peer-dep warnings.
+Všechny aktivní feature branche sloučeny do `main` a pushnuty na origin.
 
-### Smoke testy — 18/18 ✅
-
-Spuštění:
-
-```bash
-wsl -e bash -c "cd '/mnt/c/Users/Dell 5090/Documents/Claude/Projects/qr-jidelnicek/backend' && node test.js"
+```
+cb7eeab merge: stripe billing + analytics + email templates
+7f8467a feat: stripe billing + analytics + email templates
+cd9c2cf merge: admin-dashboard (CRUD, drag-drop, base64 upload, availability toggle)
+863a846 Merge pull request #4 from RubbySource/claude/backend-stabilizace
+3a74f2c merge: resolve STATUS.md conflict (keep backend stabilizace + retain P1 audit notes)
+3af23cf feat: admin dashboard - CRUD, drag-drop, image upload, availability, preview
+ea455a5 docs: doplnit URL pro ruční vytvoření PR do STATUS.md
+2bb46a9 feat: backend smoke tests + stabilizace
 ```
 
-`backend/test.js` startuje server na izolovaném portu (`TEST_PORT=4011`) s dočasnou SQLite databází v `os.tmpdir()`, takže testy nezasahují produkční data. Po dokončení server killne a temp DB smaže.
+## Co je v main
 
-Pokrytí:
+- **Backend stabilizace** (PR #4) — `node:sqlite`, `bcryptjs`, 18/18 smoke testů (`backend/test.js`).
+- **Admin dashboard** — CRUD pro kategorie/položky, drag-drop řazení, upload obrázků (base64), toggle dostupnosti, preview.
+- **Stripe billing + analytics + email templates** — feature-set sloučen na vrchol main.
 
-| Endpoint | Případ | Očekáváno | Stav |
-|---|---|---|---|
-| `GET /api/health` | základní | 200 + `{ ok: true }` | ✅ |
-| `POST /api/auth/register` | nový účet | 201 + JWT + restaurant | ✅ |
-| `POST /api/auth/register` | duplicitní email | 409 | ✅ |
-| `POST /api/auth/login` | správné heslo | 200 + JWT | ✅ |
-| `POST /api/auth/login` | špatné heslo | 401 | ✅ |
-| `GET /api/menu/:slug` | existující slug | 200 + restaurant + categories[] | ✅ |
-| `GET /api/menu/:slug` | neexistující slug | 404 | ✅ |
-| `GET /api/admin/me` | s tokenem | 200 + email | ✅ |
-| `GET /api/admin/me` | bez tokenu | 401 | ✅ |
-| `GET /api/qr/:slug` | existující slug | 200 + image/png | ✅ |
+## Merge poznámky
 
-## Co stojí za poznámku
+- `claude/backend-stabilizace` — již součást `main` před touto operací (fast-forward na pull).
+- `claude/admin-dashboard` — konflikty v `backend/src/db.js`, `adminRoutes.js`, `publicRoutes.js`, `frontend/src/pages/Admin.jsx`, `frontend/src/styles.css`. Vyřešeno přijetím verze z `admin-dashboard` (`git checkout --theirs`), protože tato větev byla vystavěna nad backend-stabilizací a obsahuje nejnovější admin funkcionalitu.
+- `claude/stripe…` jako samostatná větev neexistovala — stripe commity (`7f8467a`, `cb7eeab`) byly už na origin/main při pull.
+- Syntax check (`node --check`) prošel pro `backend/src/server.js`, `db.js`, `menu.js`, `routes/adminRoutes.js`, `routes/publicRoutes.js`.
 
-- Žádné runtime chyby — kód v `src/server.js`, `src/db.js`, `src/auth.js`, `src/routes/*` běží out-of-the-box.
-- `node:sqlite` vyžaduje Node ≥ 22.5 (stable od Node 24). WSL prostředí má v24.14.1, takže OK. Pokud někdy pojede CI na starší verzi, přepnout na `better-sqlite3` nebo zvýšit Node.
-- `JWT_SECRET` má v `auth.js` dev fallback `'dev-secret-change-me'` — pro produkci nastavit přes env.
-- `bcryptjs` (čistá JS implementace) — žádný native build, funguje napříč Win/WSL/Linux.
+## Push
 
-## Frontend
-
-Mimo scope této úlohy. Backend API je připraven, frontend volá `/api/*` na portu 3001 (CORS je povolen widely v `server.js`).
+`git push origin main` ✅ — origin/main = local main (`cb7eeab`).
 
 ## Otevřené P1 (z předchozího auditu, stále platné)
 
-- **CORS allowlist:** `app.use(cors())` v `backend/src/server.js` povoluje všechny originy. Pro produkci nastavit konkrétní frontend doménu.
-- **Rate-limiting:** `/api/auth/login` a `/api/auth/register` nejsou nijak omezené → brute-force riziko. Doporučeno `express-rate-limit` (např. 10 pokusů/min na IP).
-- **DB backup:** Railway Volume zachová SQLite mezi redeploys, ale strategie zálohy (cron + S3 / off-site) zatím není definovaná.
-- **Validace vstupů:** backend přijímá `req.body` bez Zod/Joi schémat. Funkčně to funguje, ale nemá centrální validaci ani limit délky textů.
-- **Strukturované logování:** jen `console.error` v error handleru. Pro produkci pino/winston.
-
-## Další kroky (návrh)
-
-- CI workflow, který spustí `node test.js` na PR.
-- Rate-limit na `/api/auth/*`.
-- Integrační test pro admin CRUD (kategorie, položky).
-- Stripe billing (schéma má prázdný `stripe_customer_id`).
+- **CORS allowlist:** `app.use(cors())` povoluje všechny originy.
+- **Rate-limiting:** `/api/auth/login` a `/api/auth/register` nejsou omezené.
+- **DB backup:** strategie zálohy SQLite (cron + S3 / off-site) není definována.
+- **Validace vstupů:** chybí Zod/Joi schémata.
+- **Strukturované logování:** zatím jen `console.error`.
 
 ## PR
 
