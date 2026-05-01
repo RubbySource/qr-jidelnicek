@@ -51,3 +51,10 @@ Mimo scope této úlohy. Backend API je připraven, frontend volá `/api/*` na p
 - CI workflow, který spustí `node test.js` na PR.
 - Rate-limit na `/api/auth/*`.
 - Integrační test pro admin CRUD (kategorie, položky).
+
+## PR
+
+Branch `claude/backend-stabilizace` je pushnutý na origin. PR vytvoř ručně (gh CLI v této session nebyl autentizován):
+<https://github.com/RubbySource/qr-jidelnicek/pull/new/claude/backend-stabilizace>
+
+Tip pro příště: `gh auth login` jednorázově, nebo nastavit `GH_TOKEN` v env, a pak `gh pr create` projde non-interaktivně.
