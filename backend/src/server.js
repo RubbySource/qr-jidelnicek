@@ -11,6 +11,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const emailService = require('./services/emailService');
+const { buildMetaHtml, injectMetaIntoHtml, findRestaurantBySlug } = require('./utils/meta');
 
 async function checkTrialExpiry() {
   try {
@@ -67,10 +68,38 @@ app.use('/api/billing', billingRoutes);
 
 const distDir = path.resolve(__dirname, '../../frontend/dist');
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
+  const indexHtmlPath = path.join(distDir, 'index.html');
+  let cachedIndexHtml = null;
+  const readIndexHtml = () => {
+    if (cachedIndexHtml === null) {
+      cachedIndexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+    }
+    return cachedIndexHtml;
+  };
+
+  app.use(express.static(distDir, { index: false }));
+
+  app.get('/menu/:slug', (req, res, next) => {
+    try {
+      const restaurant = findRestaurantBySlug(req.params.slug);
+      if (!restaurant) {
+        return res.status(200).type('html').send(readIndexHtml());
+      }
+      const proto = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.headers.host;
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+      const metaHtml = buildMetaHtml(restaurant, baseUrl);
+      const html = injectMetaIntoHtml(readIndexHtml(), metaHtml);
+      res.status(200).type('html').send(html);
+    } catch (err) {
+      console.error('[ssr-meta] failed:', err);
+      next();
+    }
+  });
+
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
-    res.sendFile(path.join(distDir, 'index.html'));
+    res.sendFile(indexHtmlPath);
   });
 } else {
   console.warn(`[server] frontend dist not found at ${distDir} — skipping static serving`);
