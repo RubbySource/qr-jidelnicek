@@ -103,6 +103,14 @@ if (!hasColumn('restaurants', 'plan_expires_at')) {
     if (!/duplicate column/i.test(err.message)) throw err;
   }
 }
+if (!hasColumn('restaurants', 'custom_slug')) {
+  try {
+    db.exec('ALTER TABLE restaurants ADD COLUMN custom_slug TEXT UNIQUE');
+  } catch (err) {
+    console.error('ALTER restaurants ADD custom_slug failed:', err);
+  }
+}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_custom_slug ON restaurants(custom_slug) WHERE custom_slug IS NOT NULL');
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;
