@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <title>Vítejte v QR Jídelníček Pro</title>
+</head>
+<body style="margin:0;padding:24px;background:#f7f7f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.6;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="background:#b91c1c;color:#ffffff;padding:24px;text-align:center;">
+        <h1 style="margin:0;font-size:22px;">Vítejte v QR Jídelníček Pro</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px;">
+        <p>Dobrý den,</p>
+        <p>děkujeme za registraci restaurace <strong>{{restaurantName}}</strong>. Váš účet je aktivní a máte <strong>14denní bezplatný trial</strong> do {{trialExpiresAt}}.</p>
+
+        <h2 style="font-size:16px;margin:24px 0 8px;">Váš QR kód</h2>
+        <p>Vytiskněte si QR kód a umístěte ho na stoly. Zákazníci ho jednoduše naskenují mobilem.</p>
+        <p style="text-align:center;">
+          <img src="{{qrUrl}}" alt="QR kód" width="200" height="200" style="border:1px solid #e5e7eb;border-radius:8px;" />
+        </p>
+
+        <h2 style="font-size:16px;margin:24px 0 8px;">Vaše odkazy</h2>
+        <ul>
+          <li>Veřejné menu: <a href="{{publicUrl}}" style="color:#b91c1c;">{{publicUrl}}</a></li>
+          <li>Administrace: <a href="{{adminUrl}}" style="color:#b91c1c;">{{adminUrl}}</a></li>
+        </ul>
+
+        <p style="margin-top:24px;color:#6b7280;font-size:14px;">Po skončení trialu pokračujete za 199 Kč/měsíc. Můžete kdykoli zrušit.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

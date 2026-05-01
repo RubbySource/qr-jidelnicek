@@ -16,6 +16,10 @@ db.exec(`
     password_hash TEXT NOT NULL,
     plan TEXT NOT NULL DEFAULT 'trial',
     stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    subscription_status TEXT NOT NULL DEFAULT 'trial',
+    trial_expires_at TEXT,
+    trial_reminder_sent INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -43,13 +47,26 @@ db.exec(`
     available INTEGER NOT NULL DEFAULT 1
   );
 
+  CREATE TABLE IF NOT EXISTS menu_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    viewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    user_agent TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_menus_restaurant ON menus(restaurant_id);
   CREATE INDEX IF NOT EXISTS idx_categories_menu ON categories(menu_id);
   CREATE INDEX IF NOT EXISTS idx_items_category ON items(category_id);
+  CREATE INDEX IF NOT EXISTS idx_views_restaurant ON menu_views(restaurant_id);
+  CREATE INDEX IF NOT EXISTS idx_views_viewed_at ON menu_views(viewed_at);
 `);
 
-const itemCols = db.prepare("PRAGMA table_info(items)").all();
-if (!itemCols.some((c) => c.name === 'position')) {
+function hasColumn(table, column) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  return cols.some((c) => c.name === column);
+}
+
+if (!hasColumn('items', 'position')) {
   db.exec('ALTER TABLE items ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
   db.exec(`
     UPDATE items SET position = (
@@ -59,6 +76,19 @@ if (!itemCols.some((c) => c.name === 'position')) {
   `);
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_items_position ON items(category_id, position)');
+
+if (!hasColumn('restaurants', 'subscription_status')) {
+  db.exec("ALTER TABLE restaurants ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'");
+}
+if (!hasColumn('restaurants', 'trial_expires_at')) {
+  db.exec('ALTER TABLE restaurants ADD COLUMN trial_expires_at TEXT');
+}
+if (!hasColumn('restaurants', 'stripe_subscription_id')) {
+  db.exec('ALTER TABLE restaurants ADD COLUMN stripe_subscription_id TEXT');
+}
+if (!hasColumn('restaurants', 'trial_reminder_sent')) {
+  db.exec('ALTER TABLE restaurants ADD COLUMN trial_reminder_sent INTEGER NOT NULL DEFAULT 0');
+}
 
 function toNum(v) {
   return typeof v === 'bigint' ? Number(v) : v;
