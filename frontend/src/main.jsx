@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App.jsx';
-import Landing from './pages/Landing.jsx';
+import LandingPage from './pages/LandingPage.jsx';
 import PublicMenu from './pages/PublicMenu.jsx';
 import Admin from './pages/Admin.jsx';
 import QRPage from './pages/QRPage.jsx';
@@ -13,7 +13,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />}>
-          <Route index element={<Landing />} />
+          <Route index element={<LandingPage />} />
+          <Route path="login" element={<Navigate to="/admin" replace />} />
+          <Route path="register" element={<Navigate to="/admin" replace />} />
           <Route path="menu/:slug" element={<PublicMenu />} />
           <Route path="qr/:slug" element={<QRPage />} />
           <Route path="admin" element={<Admin />} />
