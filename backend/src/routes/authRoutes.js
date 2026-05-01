@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { toNum } = require('../db');
 const { signToken } = require('../auth');
+const emailService = require('../services/emailService');
 
 const router = express.Router();
 
@@ -47,6 +48,11 @@ router.post('/register', async (req, res) => {
   ).run(restaurantId, 'Hlavní menu');
 
   const token = signToken({ id: restaurantId, slug: finalSlug });
+
+  emailService.sendWelcomeEmail(email, name).catch((err) => {
+    console.error('[auth] welcome email failed:', err.message);
+  });
+
   res.status(201).json({
     token,
     restaurant: { id: restaurantId, name, slug: finalSlug, email },
