@@ -47,7 +47,7 @@ router.get('/menu', (req, res) => {
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    'SELECT id, name, description, price, image_url, available, position FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
+    'SELECT id, name, description, price, image_url, available, position, name_en, description_en FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
   );
 
   res.json({
@@ -109,7 +109,7 @@ router.delete('/categories/:id', (req, res) => {
 });
 
 router.post('/items', (req, res) => {
-  const { category_id, name, description, price, image_url, available } = req.body || {};
+  const { category_id, name, description, price, image_url, available, name_en, description_en } = req.body || {};
   if (!category_id || !name) return res.status(400).json({ error: 'category_id and name are required' });
   if (!ownsCategory(req.user.id, category_id)) return res.status(403).json({ error: 'forbidden' });
 
@@ -118,8 +118,8 @@ router.post('/items', (req, res) => {
   ).get(category_id).n;
 
   const result = db.prepare(`
-    INSERT INTO items (category_id, name, description, price, image_url, available, position)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO items (category_id, name, description, price, image_url, available, position, name_en, description_en)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     category_id,
     name,
@@ -127,21 +127,25 @@ router.post('/items', (req, res) => {
     Number(price) || 0,
     image_url || null,
     available === false ? 0 : 1,
-    nextPos
+    nextPos,
+    name_en ? String(name_en) : null,
+    description_en ? String(description_en) : null
   );
   res.status(201).json({ id: toNum(result.lastInsertRowid), position: nextPos });
 });
 
 router.put('/items/:id', (req, res) => {
   if (!ownsItem(req.user.id, req.params.id)) return res.status(404).json({ error: 'not found' });
-  const { name, description, price, image_url, available } = req.body || {};
+  const { name, description, price, image_url, available, name_en, description_en } = req.body || {};
   db.prepare(`
     UPDATE items SET
       name = COALESCE(?, name),
       description = COALESCE(?, description),
       price = COALESCE(?, price),
       image_url = COALESCE(?, image_url),
-      available = COALESCE(?, available)
+      available = COALESCE(?, available),
+      name_en = CASE WHEN ? = 1 THEN ? ELSE name_en END,
+      description_en = CASE WHEN ? = 1 THEN ? ELSE description_en END
     WHERE id = ?
   `).run(
     name ?? null,
@@ -149,6 +153,10 @@ router.put('/items/:id', (req, res) => {
     price !== undefined ? Number(price) : null,
     image_url ?? null,
     available === undefined ? null : (available ? 1 : 0),
+    name_en !== undefined ? 1 : 0,
+    name_en ? String(name_en) : null,
+    description_en !== undefined ? 1 : 0,
+    description_en ? String(description_en) : null,
     req.params.id
   );
   res.json({ ok: true });

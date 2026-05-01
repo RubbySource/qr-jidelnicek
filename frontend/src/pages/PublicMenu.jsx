@@ -71,10 +71,10 @@ export default function PublicMenu() {
   });
 
   useEffect(() => {
-    api.getMenu(slug)
+    api.getMenu(slug, lang)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [slug]);
+  }, [slug, lang]);
 
   useEffect(() => {
     localStorage.setItem(LANG_KEY, lang);

@@ -13,6 +13,8 @@ const QR_OPTIONS = {
 };
 
 router.get('/menu/:slug', (req, res) => {
+  const lang = req.query.lang === 'en' ? 'en' : 'cs';
+
   const restaurant = db.prepare(
     'SELECT id, name, slug FROM restaurants WHERE slug = ?'
   ).get(req.params.slug);
@@ -21,22 +23,34 @@ router.get('/menu/:slug', (req, res) => {
   const menu = db.prepare(
     'SELECT id, name FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY id ASC LIMIT 1'
   ).get(restaurant.id);
-  if (!menu) return res.json({ restaurant, menu: null, categories: [] });
+  if (!menu) return res.json({ restaurant, menu: null, categories: [], lang });
 
   const categories = db.prepare(
     'SELECT id, name, "order" FROM categories WHERE menu_id = ? ORDER BY "order" ASC, id ASC'
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    'SELECT id, name, description, price, image_url, available FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
+    'SELECT id, name, description, price, image_url, available, name_en, description_en FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
   );
 
   const result = categories.map((c) => ({
     ...c,
-    items: itemStmt.all(c.id).map((it) => ({ ...it, available: !!it.available })),
+    items: itemStmt.all(c.id).map((it) => {
+      const useEn = lang === 'en';
+      const name = useEn && it.name_en ? it.name_en : it.name;
+      const description = useEn && it.description_en ? it.description_en : it.description;
+      return {
+        id: it.id,
+        name,
+        description,
+        price: it.price,
+        image_url: it.image_url,
+        available: !!it.available,
+      };
+    }),
   }));
 
-  res.json({ restaurant, menu, categories: result });
+  res.json({ restaurant, menu, categories: result, lang });
 });
 
 router.get('/qr/:slug', async (req, res) => {
