@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken, setToken } from '../api';
+import AnalyticsCard from '../components/AnalyticsCard';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -300,6 +301,7 @@ function Dashboard({ restaurant, onLogout }) {
   const [newCategory, setNewCategory] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
+  const [tab, setTab] = useState('menu');
   const dragRef = useRef({ kind: null, id: null, categoryId: null });
   const [dragKey, setDragKey] = useState(null);
 
@@ -438,6 +440,31 @@ function Dashboard({ restaurant, onLogout }) {
           </p>
         </div>
 
+        <div className="tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'menu'}
+            className={`tab ${tab === 'menu' ? 'tab-active' : ''}`}
+            onClick={() => setTab('menu')}
+          >
+            Menu
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'analytics'}
+            className={`tab ${tab === 'analytics' ? 'tab-active' : ''}`}
+            onClick={() => setTab('analytics')}
+          >
+            📊 Statistiky
+          </button>
+        </div>
+
+        {tab === 'analytics' && <AnalyticsCard />}
+
+        {tab === 'menu' && (
+        <>
         <h2>Kategorie a položky</h2>
 
         <form onSubmit={addCategory} className="card row">
@@ -519,6 +546,8 @@ function Dashboard({ restaurant, onLogout }) {
             )}
           </div>
         ))}
+        </>
+        )}
       </div>
     </div>
   );

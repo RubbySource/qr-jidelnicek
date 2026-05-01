@@ -30,6 +30,52 @@ function ownsItem(restaurantId, itemId) {
   `).get(itemId, restaurantId);
 }
 
+router.get('/analytics', (req, res) => {
+  const restaurantId = req.user.id;
+
+  const total7d = toNum(db.prepare(`
+    SELECT COUNT(*) AS n FROM menu_views
+    WHERE restaurant_id = ? AND viewed_at >= datetime('now', '-7 days')
+  `).get(restaurantId).n);
+
+  const total30d = toNum(db.prepare(`
+    SELECT COUNT(*) AS n FROM menu_views
+    WHERE restaurant_id = ? AND viewed_at >= datetime('now', '-30 days')
+  `).get(restaurantId).n);
+
+  const byDayRows = db.prepare(`
+    SELECT date(viewed_at) AS date, COUNT(*) AS count
+    FROM menu_views
+    WHERE restaurant_id = ? AND viewed_at >= date('now', '-6 days')
+    GROUP BY date(viewed_at)
+  `).all(restaurantId);
+
+  const byDayMap = new Map(byDayRows.map((r) => [r.date, toNum(r.count)]));
+  const views_by_day = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const date = d.toISOString().slice(0, 10);
+    views_by_day.push({ date, count: byDayMap.get(date) || 0 });
+  }
+
+  const top_items = db.prepare(`
+    SELECT i.name FROM items i
+    JOIN categories c ON c.id = i.category_id
+    JOIN menus m ON m.id = c.menu_id
+    WHERE m.restaurant_id = ? AND m.active = 1
+    ORDER BY c."order" ASC, i.position ASC, i.id ASC
+    LIMIT 5
+  `).all(restaurantId).map((r) => ({ name: r.name, view_count: total30d }));
+
+  res.json({
+    total_views_7d: total7d,
+    total_views_30d: total30d,
+    views_by_day,
+    top_items,
+  });
+});
+
 router.get('/me', (req, res) => {
   const r = db.prepare(
     'SELECT id, name, slug, email, plan, created_at FROM restaurants WHERE id = ?'

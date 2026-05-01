@@ -12,6 +12,10 @@ const QR_OPTIONS = {
   errorCorrectionLevel: 'H',
 };
 
+const insertView = db.prepare(
+  'INSERT INTO menu_views (restaurant_id, user_agent) VALUES (?, ?)'
+);
+
 router.get('/menu/:slug', (req, res) => {
   const lang = req.query.lang === 'en' ? 'en' : 'cs';
 
@@ -19,6 +23,12 @@ router.get('/menu/:slug', (req, res) => {
     'SELECT id, name, slug FROM restaurants WHERE slug = ?'
   ).get(req.params.slug);
   if (!restaurant) return res.status(404).json({ error: 'restaurant not found' });
+
+  try {
+    insertView.run(restaurant.id, (req.headers['user-agent'] || '').slice(0, 500));
+  } catch (err) {
+    console.error('menu_views insert failed:', err);
+  }
 
   const menu = db.prepare(
     'SELECT id, name FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY id ASC LIMIT 1'
