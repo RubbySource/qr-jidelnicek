@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#b91c1c"/>
+  <g fill="#ffffff" transform="translate(96 96)">
+    <!-- QR-style finder squares -->
+    <rect x="0" y="0" width="80" height="80" rx="8"/>
+    <rect x="16" y="16" width="48" height="48" rx="4" fill="#b91c1c"/>
+    <rect x="28" y="28" width="24" height="24" rx="2" fill="#ffffff"/>
+
+    <rect x="240" y="0" width="80" height="80" rx="8"/>
+    <rect x="256" y="16" width="48" height="48" rx="4" fill="#b91c1c"/>
+    <rect x="268" y="28" width="24" height="24" rx="2" fill="#ffffff"/>
+
+    <rect x="0" y="240" width="80" height="80" rx="8"/>
+    <rect x="16" y="256" width="48" height="48" rx="4" fill="#b91c1c"/>
+    <rect x="28" y="268" width="24" height="24" rx="2" fill="#ffffff"/>
+
+    <!-- Cutlery in middle -->
+    <rect x="140" y="120" width="12" height="80" rx="6"/>
+    <rect x="168" y="120" width="12" height="80" rx="6"/>
+    <rect x="196" y="120" width="12" height="48" rx="6"/>
+    <circle cx="202" cy="180" r="14"/>
+  </g>
+</svg>

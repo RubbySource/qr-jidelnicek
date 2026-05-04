@@ -50,7 +50,30 @@ async function checkTrialExpiry() {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// CORS allowlist — set CORS_ORIGINS to a comma-separated list of allowed origins.
+// Default in production: only allow same-origin (no Origin header / matching PUBLIC_BASE_URL).
+// Default in development: allow everything (legacy behavior).
+const corsOriginsRaw = process.env.CORS_ORIGINS || '';
+const corsAllowList = corsOriginsRaw
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const isDev = process.env.NODE_ENV !== 'production';
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // same-origin / curl / server-to-server
+      if (corsAllowList.length === 0) return cb(null, isDev);
+      if (corsAllowList.includes('*')) return cb(null, true);
+      if (corsAllowList.includes(origin)) return cb(null, true);
+      return cb(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
+// Trust proxy so req.ip reflects the real client (Railway/Heroku-style proxy).
+app.set('trust proxy', 1);
 
 app.post(
   '/api/billing/webhook',
@@ -66,7 +89,29 @@ app.post(
 
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, name: 'QR Jidelnicek Pro' }));
+// Cache a snapshot of package.json once at startup.
+let appVersion = 'unknown';
+try {
+  appVersion = require('../package.json').version || 'unknown';
+} catch { /* ignore */ }
+const startTime = Date.now();
+
+app.get('/api/health', (req, res) => {
+  let dbOk = false;
+  try {
+    db.prepare('SELECT 1 AS ok').get();
+    dbOk = true;
+  } catch (err) {
+    console.error('[health] DB check failed:', err.message);
+  }
+  res.status(dbOk ? 200 : 503).json({
+    ok: dbOk,
+    name: 'QR Jidelnicek Pro',
+    version: appVersion,
+    uptime_s: Math.round((Date.now() - startTime) / 1000),
+    db: dbOk ? 'ok' : 'fail',
+  });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);

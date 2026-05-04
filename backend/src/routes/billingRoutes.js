@@ -5,7 +5,7 @@ const { sendEmail } = require('../email');
 
 const router = express.Router();
 
-const PRICE_AMOUNT = 19900;
+const PRICE_AMOUNT = 29900;
 const PRICE_CURRENCY = 'czk';
 
 let stripeClient = null;

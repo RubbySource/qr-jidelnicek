@@ -1,6 +1,7 @@
 const db = require('../db');
 
-const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/1200x630.png?text=QR+J%C3%ADdeln%C3%AD%C4%8Dek';
+// via.placeholder.com is offline as of 2024 — placehold.co is its actively maintained successor.
+const PLACEHOLDER_IMAGE = 'https://placehold.co/1200x630/2d5a27/f5f0e8/png?text=QR+J%C3%ADdeln%C3%AD%C4%8Dek';
 
 function escapeHtml(value) {
   if (value === null || value === undefined) return '';
@@ -26,6 +27,7 @@ function findRestaurantBySlug(slug) {
 }
 
 function pickFirstItemImage(restaurantId) {
+  // Skip base64 data URLs — Facebook/Twitter scrapers can't fetch them.
   const row = db
     .prepare(
       `SELECT i.image_url AS image_url
@@ -36,6 +38,7 @@ function pickFirstItemImage(restaurantId) {
          AND m.active = 1
          AND i.image_url IS NOT NULL
          AND i.image_url <> ''
+         AND i.image_url NOT LIKE 'data:%'
        ORDER BY c."order" ASC, i.position ASC, i.id ASC
        LIMIT 1`
     )

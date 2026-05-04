@@ -1,0 +1,19 @@
+{
+  "name": "QR Jídelníček Pro",
+  "short_name": "QR Menu",
+  "description": "Digitální jídelní lístek. Naskenujte QR kód a prohlédněte si nabídku restaurace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#b91c1c",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "cs"
+}

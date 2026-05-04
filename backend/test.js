@@ -53,7 +53,13 @@ function waitForServer(timeoutMs = 5000) {
 async function run() {
   console.log(`Starting server on port ${PORT} with DB=${TMP_DB}`);
   const server = spawn(process.execPath, [path.join(__dirname, 'src', 'server.js')], {
-    env: { ...process.env, PORT: String(PORT), DB_PATH: TMP_DB, JWT_SECRET: 'test-secret' },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      DB_PATH: TMP_DB,
+      JWT_SECRET: 'test-secret',
+      DISABLE_RATE_LIMIT: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.on('data', () => {});
@@ -160,6 +166,183 @@ async function run() {
       const ct = r.headers.get('content-type') || '';
       assert(r.status === 200, 'GET /api/qr/:slug returns 200');
       assert(ct.includes('image/png'), 'GET /api/qr/:slug returns image/png');
+    }
+
+    // 6b. QR SVG / PDF
+    {
+      const svg = await fetch(`${BASE}/api/qr/${slug}?format=svg`);
+      assert(svg.status === 200 && (svg.headers.get('content-type') || '').includes('image/svg'),
+        'GET /api/qr/:slug?format=svg returns image/svg+xml');
+      const pdf = await fetch(`${BASE}/api/qr/${slug}?format=pdf`);
+      assert(pdf.status === 200 && (pdf.headers.get('content-type') || '').includes('application/pdf'),
+        'GET /api/qr/:slug?format=pdf returns application/pdf');
+    }
+
+    // 7. Seed demo + retrieve dietary flags + allergens via admin
+    let categoryId = null;
+    {
+      const seed = await fetchJson(`${BASE}/api/admin/seed-demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      assert(seed.status === 200 && seed.body && seed.body.ok === true, 'POST /api/admin/seed-demo returns ok');
+
+      const adminMenu = await fetchJson(`${BASE}/api/admin/menu`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert(adminMenu.status === 200 && Array.isArray(adminMenu.body.categories) && adminMenu.body.categories.length > 0,
+        'admin/menu returns seeded categories');
+      categoryId = adminMenu.body.categories[0].id;
+      const firstCat = adminMenu.body.categories[0];
+      const someItem = firstCat.items[0];
+      assert(typeof someItem.is_vegetarian === 'boolean', 'item has boolean is_vegetarian flag');
+      assert(Array.isArray(someItem.allergens), 'item has allergens array');
+    }
+
+    // 8. Public menu returns dietary flags + allergens
+    {
+      const r = await fetchJson(`${BASE}/api/menu/${slug}`);
+      assert(r.status === 200, 'public menu returns 200');
+      const cat = r.body.categories[0];
+      const it = cat.items[0];
+      assert(typeof it.is_vegetarian === 'boolean', 'public item has boolean is_vegetarian');
+      assert(Array.isArray(it.allergens), 'public item has allergens array');
+    }
+
+    // 9. Create custom item with flags + allergens
+    if (categoryId) {
+      const createRes = await fetchJson(`${BASE}/api/admin/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          category_id: categoryId,
+          name: 'Test pikantní vegan jídlo',
+          price: 199,
+          is_vegan: true,
+          is_spicy: true,
+          is_featured: true,
+          allergens: ['1', '7', '99'],  // 99 should be filtered out
+        }),
+      });
+      assert(createRes.status === 201 && createRes.body && typeof createRes.body.id === 'number',
+        'POST /api/admin/items with flags+allergens returns 201');
+
+      const reload = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      const newItem = reload.body.categories
+        .flatMap((c) => c.items)
+        .find((it) => it.id === createRes.body.id);
+      assert(!!newItem && newItem.is_vegan === true && newItem.is_spicy === true && newItem.is_featured === true,
+        'created item retains flags');
+      assert(!!newItem && Array.isArray(newItem.allergens) && newItem.allergens.includes('1') && newItem.allergens.includes('7') && !newItem.allergens.includes('99'),
+        'allergens are validated against EU 1-14');
+    }
+
+    // 10. Move endpoints
+    if (categoryId) {
+      const r = await fetchJson(`${BASE}/api/admin/categories/${categoryId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ direction: 'down' }),
+      });
+      assert(r.status === 200, 'POST /api/admin/categories/:id/move returns 200');
+    }
+
+    // 10b. Forgot password — non-existent email returns 200 (no enumeration)
+    {
+      const r = await fetchJson(`${BASE}/api/auth/forgot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'nobody-here@example.com' }),
+      });
+      assert(r.status === 200 && r.body && r.body.ok === true,
+        'POST /api/auth/forgot returns 200 even for unknown email (anti-enum)');
+    }
+
+    // 10c. Reset with bogus token returns 400
+    {
+      const r = await fetchJson(`${BASE}/api/auth/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'definitely-not-a-real-token', password: 'newpass1234' }),
+      });
+      assert(r.status === 400, 'POST /api/auth/reset with bogus token returns 400');
+    }
+
+    // 10c2. Duplicate item + bulk-availability
+    if (categoryId) {
+      const adminBefore = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      const firstItem = adminBefore.body.categories[0].items[0];
+      const beforeCount = adminBefore.body.categories[0].items.length;
+
+      const dup = await fetchJson(`${BASE}/api/admin/items/${firstItem.id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      assert(dup.status === 201 && typeof dup.body.id === 'number',
+        'POST /api/admin/items/:id/duplicate returns 201 with new id');
+
+      const adminAfter = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      assert(adminAfter.body.categories[0].items.length === beforeCount + 1, 'duplicate increases item count by 1');
+
+      const bulk = await fetchJson(`${BASE}/api/admin/categories/${categoryId}/availability`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ available: false }),
+      });
+      assert(bulk.status === 200 && bulk.body.updated > 0,
+        'PATCH /api/admin/categories/:id/availability flips all items');
+    }
+
+    // 10d. Menu export → import roundtrip
+    {
+      const exp = await fetchJson(`${BASE}/api/admin/menu/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert(exp.status === 200 && exp.body && exp.body.schema_version === 1,
+        'GET /api/admin/menu/export returns schema_version=1');
+      assert(Array.isArray(exp.body.categories) && exp.body.categories.length > 0,
+        'export contains categories');
+
+      // Import same data with replace=true → categories count should match.
+      const imp = await fetchJson(`${BASE}/api/admin/menu/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...exp.body, replace: true }),
+      });
+      assert(imp.status === 200 && imp.body && imp.body.categories === exp.body.categories.length,
+        'import roundtrip restores same number of categories');
+    }
+
+    // 10e. Import with bad schema → 400
+    {
+      const r = await fetchJson(`${BASE}/api/admin/menu/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ foo: 'bar' }),
+      });
+      assert(r.status === 400, 'import rejects unknown schema with 400');
+    }
+
+    // 11. Restaurant profile update + propagation to public menu
+    {
+      const upd = await fetchJson(`${BASE}/api/admin/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          phone: '+420 123 456 789',
+          address: 'Václavské náměstí 1, Praha 1',
+          opening_hours: 'Po-Pá: 11-22\nSo-Ne: 12-23',
+          website_url: 'https://example.cz',
+        }),
+      });
+      assert(upd.status === 200 && upd.body && upd.body.phone === '+420 123 456 789',
+        'PUT /api/admin/profile updates and returns profile');
+
+      const pub = await fetchJson(`${BASE}/api/menu/${slug}`);
+      assert(pub.status === 200 && pub.body.restaurant.phone === '+420 123 456 789' && pub.body.restaurant.address.startsWith('Václavské'),
+        'public menu returns restaurant profile fields');
     }
   } finally {
     cleanup();

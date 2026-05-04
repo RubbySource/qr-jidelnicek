@@ -408,3 +408,263 @@ body.admin-dark .container {
 body.admin-dark p.muted {
   color: #94a3b8 !important;
 }
+
+/* ═══════════════════════════════════════════════
+   PUBLIC MENU — language toggle, search, filters, badges
+   ═══════════════════════════════════════════════ */
+
+.menu-header {
+  position: relative;
+}
+.restaurant-logo {
+  display: block;
+  margin: 0 auto 12px;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.1);
+}
+.restaurant-profile {
+  margin-top: 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.92);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.restaurant-profile a { color: inherit; text-decoration: underline; }
+.restaurant-profile .opening-hours {
+  white-space: pre-line;
+  text-align: center;
+}
+.lang-toggle {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.lang-toggle:hover { background: rgba(255,255,255,0.25); }
+
+.menu-controls {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.search-input {
+  font-size: 16px;
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+.chip.active {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #b91c1c;
+}
+.chip-clear {
+  border-style: dashed;
+  color: #6b7280;
+}
+
+.category.specials {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+}
+.category.specials h2 {
+  color: #92400e;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  letter-spacing: 0.02em;
+}
+.badge-featured {
+  background: #fbbf24;
+  color: #78350f;
+}
+.badge-veg { background: #dcfce7; color: #166534; }
+.badge-vegan { background: #bbf7d0; color: #14532d; }
+.badge-gf { background: #fef3c7; color: #854d0e; }
+.badge-lf { background: #dbeafe; color: #1e40af; }
+.badge-spicy { background: #fee2e2; color: #991b1b; }
+.badge-allergens {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+}
+
+.item-allergens {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN — dietary checks, allergen chips
+   ═══════════════════════════════════════════════ */
+
+.diet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px 12px;
+  margin-top: 4px;
+}
+.diet-check {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+.diet-check input[type="checkbox"] {
+  width: auto !important;
+  margin: 0;
+}
+.allergen-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.allergen-chip {
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0 !important;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+  color: #374151;
+  user-select: none;
+}
+.allergen-chip-active {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #b91c1c;
+}
+.admin-badges {
+  margin-top: 6px;
+}
+
+body.admin-dark .chip {
+  background: rgba(15,23,42,0.5) !important;
+  border-color: rgba(99,102,241,0.3) !important;
+  color: #cbd5e1 !important;
+}
+body.admin-dark .chip.active {
+  background: linear-gradient(135deg,#6366f1,#8b5cf6) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+body.admin-dark .allergen-chip {
+  background: rgba(15,23,42,0.5) !important;
+  border-color: rgba(99,102,241,0.3) !important;
+  color: #cbd5e1 !important;
+}
+body.admin-dark .allergen-chip-active {
+  background: linear-gradient(135deg,#6366f1,#8b5cf6) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+body.admin-dark .badge {
+  background: rgba(99,102,241,0.15) !important;
+  color: #c7d2fe !important;
+}
+body.admin-dark .badge-featured { background: rgba(251,191,36,0.2) !important; color: #fde68a !important; }
+body.admin-dark .badge-veg { background: rgba(34,197,94,0.2) !important; color: #86efac !important; }
+body.admin-dark .badge-vegan { background: rgba(34,197,94,0.25) !important; color: #4ade80 !important; }
+body.admin-dark .badge-gf { background: rgba(251,191,36,0.2) !important; color: #fcd34d !important; }
+body.admin-dark .badge-lf { background: rgba(96,165,250,0.2) !important; color: #93c5fd !important; }
+body.admin-dark .badge-spicy { background: rgba(248,113,113,0.2) !important; color: #fca5a5 !important; }
+body.admin-dark .badge-allergens { background: rgba(148,163,184,0.15) !important; color: #cbd5e1 !important; }
+
+@media (max-width: 480px) {
+  .item { flex-direction: column; align-items: stretch; }
+  .item-price { align-self: flex-end; }
+}
+
+/* ═══════════════════════════════════════════════
+   PRINT STYLES — clean A4 menu printable from /menu/:slug
+   ═══════════════════════════════════════════════ */
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .menu-header {
+    background: #fff !important;
+    color: #000 !important;
+    border-bottom: 2px solid #000;
+    padding-bottom: 12px;
+    page-break-after: avoid;
+  }
+  .menu-header h1 { color: #000 !important; }
+  .restaurant-logo { border-color: #ccc !important; }
+  .lang-toggle { display: none !important; }
+  .menu-controls { display: none !important; }
+  .filter-chips { display: none !important; }
+
+  .category {
+    background: #fff !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    border: none !important;
+    padding: 8px 0 !important;
+    margin: 8px 0 !important;
+  }
+  .category h2 {
+    color: #000 !important;
+    border-bottom: 1px solid #999;
+    padding-bottom: 4px;
+  }
+  .category.specials {
+    background: #fff !important;
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+  }
+  .category.specials h2 { color: #000 !important; }
+
+  .item { page-break-inside: avoid; padding: 6px 0 !important; }
+  .badge { border: 1px solid #999; background: #fff !important; color: #000 !important; }
+  .item.unavailable { display: none !important; }
+  .restaurant-profile { color: #555 !important; }
+  .restaurant-profile a { color: #000 !important; text-decoration: none !important; }
+  a { color: #000 !important; }
+}
+

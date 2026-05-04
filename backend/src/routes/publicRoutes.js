@@ -19,12 +19,13 @@ const insertView = db.prepare(
 router.get('/menu/:slug', (req, res) => {
   const lang = req.query.lang === 'en' ? 'en' : 'cs';
 
+  const PROFILE_COLS = 'id, name, slug, logo_url, phone, address, opening_hours, website_url';
   let restaurant = db.prepare(
-    'SELECT id, name, slug FROM restaurants WHERE custom_slug = ?'
+    `SELECT ${PROFILE_COLS} FROM restaurants WHERE custom_slug = ?`
   ).get(req.params.slug);
   if (!restaurant) {
     restaurant = db.prepare(
-      'SELECT id, name, slug FROM restaurants WHERE slug = ?'
+      `SELECT ${PROFILE_COLS} FROM restaurants WHERE slug = ?`
     ).get(req.params.slug);
   }
   if (!restaurant) return res.status(404).json({ error: 'restaurant not found' });
@@ -45,8 +46,15 @@ router.get('/menu/:slug', (req, res) => {
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    'SELECT id, name, description, price, image_url, available, name_en, description_en FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
+    `SELECT id, name, description, price, image_url, available, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE category_id = ? ORDER BY position ASC, id ASC`
   );
+
+  const decodeAllergens = (s) => {
+    if (!s) return [];
+    try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { return []; }
+  };
 
   const result = categories.map((c) => ({
     ...c,
@@ -61,6 +69,13 @@ router.get('/menu/:slug', (req, res) => {
         price: it.price,
         image_url: it.image_url,
         available: !!it.available,
+        is_vegetarian: !!it.is_vegetarian,
+        is_vegan: !!it.is_vegan,
+        is_gluten_free: !!it.is_gluten_free,
+        is_lactose_free: !!it.is_lactose_free,
+        is_spicy: !!it.is_spicy,
+        is_featured: !!it.is_featured,
+        allergens: decodeAllergens(it.allergens),
       };
     }),
   }));

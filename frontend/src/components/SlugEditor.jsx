@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { api } from '../api';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const PUBLIC_BASE = 'https://qr-jidelnicek-demo.loca.lt';
 
 export default function SlugEditor({ restaurant, onUpdated }) {
   const initial = restaurant.custom_slug || '';
@@ -14,7 +13,8 @@ export default function SlugEditor({ restaurant, onUpdated }) {
   const trimmed = value.trim().toLowerCase();
   const localValid = trimmed.length >= 3 && trimmed.length <= 40 && SLUG_RE.test(trimmed);
   const previewSlug = trimmed || restaurant.slug;
-  const previewUrl = `${PUBLIC_BASE}/menu/${previewSlug}`;
+  const publicBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const previewUrl = `${publicBase}/menu/${previewSlug}`;
 
   async function save(e) {
     e.preventDefault();

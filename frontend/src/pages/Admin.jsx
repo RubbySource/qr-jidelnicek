@@ -4,23 +4,40 @@ import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
 import UpgradeButton from '../components/UpgradeButton';
 import SlugEditor from '../components/SlugEditor';
+import ProfileEditor from '../components/ProfileEditor';
+import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
-function AuthForm({ onAuth }) {
-  const [mode, setMode] = useState('login');
+function AuthForm({ onAuth, resetTokenFromUrl }) {
+  const [mode, setMode] = useState(resetTokenFromUrl ? 'reset' : 'login');
   const [form, setForm] = useState({ name: '', email: '', password: '', slug: '' });
   const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     try {
-      const res = mode === 'login'
-        ? await api.login({ email: form.email, password: form.password })
-        : await api.register(form);
-      setToken(res.token);
-      onAuth(res.restaurant);
+      if (mode === 'login') {
+        const res = await api.login({ email: form.email, password: form.password });
+        setToken(res.token);
+        onAuth(res.restaurant);
+      } else if (mode === 'register') {
+        const res = await api.register(form);
+        setToken(res.token);
+        onAuth(res.restaurant);
+      } else if (mode === 'forgot') {
+        await api.forgotPassword(form.email);
+        setInfo('Pokud e-mail existuje v naší databázi, poslali jsme na něj odkaz pro obnovení hesla. Zkontrolujte i složku spam.');
+      } else if (mode === 'reset') {
+        const res = await api.resetPassword(resetTokenFromUrl, form.password);
+        setToken(res.token);
+        // Strip token from URL.
+        try { window.history.replaceState({}, '', '/admin'); } catch { /* ignore */ }
+        onAuth(res.restaurant);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -28,9 +45,22 @@ function AuthForm({ onAuth }) {
     }
   }
 
+  const titles = {
+    login: 'Přihlášení',
+    register: 'Registrace restaurace',
+    forgot: 'Zapomenuté heslo',
+    reset: 'Nastavte nové heslo',
+  };
+  const submitLabels = {
+    login: 'Přihlásit',
+    register: 'Vytvořit účet',
+    forgot: 'Poslat e-mail s odkazem',
+    reset: 'Nastavit nové heslo',
+  };
+
   return (
     <div className="container" style={{ maxWidth: 420, paddingTop: 48 }}>
-      <h1>{mode === 'login' ? 'Přihlášení' : 'Registrace restaurace'}</h1>
+      <h1>{titles[mode]}</h1>
       <form onSubmit={submit} className="card">
         {mode === 'register' && (
           <>
@@ -44,24 +74,50 @@ function AuthForm({ onAuth }) {
             </label>
           </>
         )}
-        <label>
-          <span>E-mail</span>
-          <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-        </label>
-        <label>
-          <span>Heslo</span>
-          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
-        </label>
+        {(mode === 'login' || mode === 'register' || mode === 'forgot') && (
+          <label>
+            <span>E-mail</span>
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          </label>
+        )}
+        {(mode === 'login' || mode === 'register' || mode === 'reset') && (
+          <label>
+            <span>{mode === 'reset' ? 'Nové heslo' : 'Heslo'}</span>
+            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
+          </label>
+        )}
         {error && <p className="error">{error}</p>}
+        {info && <p className="muted" style={{ background: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 8 }}>{info}</p>}
         <button className="primary" disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Pracuji…' : (mode === 'login' ? 'Přihlásit' : 'Vytvořit účet')}
+          {loading ? 'Pracuji…' : submitLabels[mode]}
         </button>
       </form>
       <p className="muted" style={{ textAlign: 'center' }}>
-        {mode === 'login' ? 'Nemáte účet?' : 'Už máte účet?'}{' '}
-        <a href="#" onClick={(e) => { e.preventDefault(); setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}>
-          {mode === 'login' ? 'Zaregistrujte se' : 'Přihlaste se'}
-        </a>
+        {mode === 'login' && (
+          <>
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('forgot'); setError(null); setInfo(null); }}>
+              Zapomněli jste heslo?
+            </a>
+            {' · '}
+            Nemáte účet?{' '}
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('register'); setError(null); setInfo(null); }}>
+              Zaregistrujte se
+            </a>
+          </>
+        )}
+        {mode === 'register' && (
+          <>
+            Už máte účet?{' '}
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('login'); setError(null); setInfo(null); }}>
+              Přihlaste se
+            </a>
+          </>
+        )}
+        {(mode === 'forgot' || mode === 'reset') && (
+          <a href="#" onClick={(e) => { e.preventDefault(); setMode('login'); setError(null); setInfo(null); }}>
+            ← Zpět na přihlášení
+          </a>
+        )}
       </p>
     </div>
   );
@@ -136,6 +192,15 @@ function ImageField({ value, onChange }) {
   );
 }
 
+const DIETARY_FLAGS = [
+  { key: 'is_featured', label: '★ Doporučujeme' },
+  { key: 'is_vegetarian', label: 'Vegetariánské' },
+  { key: 'is_vegan', label: 'Vegan' },
+  { key: 'is_gluten_free', label: 'Bez lepku' },
+  { key: 'is_lactose_free', label: 'Bez laktózy' },
+  { key: 'is_spicy', label: 'Pikantní' },
+];
+
 function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   const [form, setForm] = useState({
     name: item?.name || '',
@@ -145,9 +210,25 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     available: item?.available ?? true,
     name_en: item?.name_en || '',
     description_en: item?.description_en || '',
+    is_featured: !!item?.is_featured,
+    is_vegetarian: !!item?.is_vegetarian,
+    is_vegan: !!item?.is_vegan,
+    is_gluten_free: !!item?.is_gluten_free,
+    is_lactose_free: !!item?.is_lactose_free,
+    is_spicy: !!item?.is_spicy,
+    allergens: Array.isArray(item?.allergens) ? [...item.allergens] : [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  function toggleAllergen(code) {
+    setForm((f) => ({
+      ...f,
+      allergens: f.allergens.includes(code)
+        ? f.allergens.filter((c) => c !== code)
+        : [...f.allergens, code],
+    }));
+  }
 
   async function save(e) {
     e.preventDefault();
@@ -209,6 +290,39 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
           />
         </label>
       </fieldset>
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>Stravovací značky</legend>
+        <div className="diet-grid">
+          {DIETARY_FLAGS.map((f) => (
+            <label key={f.key} className="diet-check">
+              <input
+                type="checkbox"
+                checked={!!form[f.key]}
+                onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })}
+              />
+              <span>{f.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>Alergeny (EU 1169/2011)</legend>
+        <div className="allergen-grid">
+          {ALLERGEN_CODES.map((code) => (
+            <label key={code} className={`allergen-chip ${form.allergens.includes(code) ? 'allergen-chip-active' : ''}`}>
+              <input
+                type="checkbox"
+                checked={form.allergens.includes(code)}
+                onChange={() => toggleAllergen(code)}
+                style={{ display: 'none' }}
+              />
+              <span><strong>{code}</strong> {ALLERGENS[code].cs}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <label className="row" style={{ marginTop: 12 }}>
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
@@ -222,7 +336,7 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   );
 }
 
-function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
+function CategoryHeader({ category, onRename, onDelete, onBulkAvailability, dragHandlers }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
 
@@ -258,8 +372,14 @@ function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
         )}
       </div>
       {!editing && (
-        <div className="row">
+        <div className="row" style={{ flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setEditing(true)}>Přejmenovat</button>
+          {onBulkAvailability && (
+            <>
+              <button type="button" onClick={() => onBulkAvailability(false)} title="Označit všechny položky v kategorii jako nedostupné">Vše nedost.</button>
+              <button type="button" onClick={() => onBulkAvailability(true)} title="Označit všechny položky v kategorii jako dostupné">Vše dost.</button>
+            </>
+          )}
           <button className="danger" onClick={onDelete}>Smazat kategorii</button>
         </div>
       )}
@@ -267,7 +387,26 @@ function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
   );
 }
 
-function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
+function AdminBadges({ item }) {
+  const tags = [];
+  if (item.is_featured) tags.push({ k: 'featured', label: '★', cls: 'badge-featured' });
+  if (item.is_vegetarian) tags.push({ k: 'veg', label: 'Veg', cls: 'badge-veg' });
+  if (item.is_vegan) tags.push({ k: 'vegan', label: 'Vegan', cls: 'badge-vegan' });
+  if (item.is_gluten_free) tags.push({ k: 'gf', label: 'Bez lepku', cls: 'badge-gf' });
+  if (item.is_lactose_free) tags.push({ k: 'lf', label: 'Bez laktózy', cls: 'badge-lf' });
+  if (item.is_spicy) tags.push({ k: 'spicy', label: 'Pikantní', cls: 'badge-spicy' });
+  if (tags.length === 0 && (!item.allergens || item.allergens.length === 0)) return null;
+  return (
+    <div className="badges admin-badges">
+      {tags.map((t) => <span key={t.k} className={`badge ${t.cls}`}>{t.label}</span>)}
+      {item.allergens && item.allergens.length > 0 && (
+        <span className="badge badge-allergens" title="Alergeny">A: {item.allergens.join(', ')}</span>
+      )}
+    </div>
+  );
+}
+
+function ItemRow({ item, onEdit, onDelete, onToggleAvailable, onDuplicate, dragHandlers, onDragOver, onDrop, isDragging }) {
   return (
     <div
       className={`item ${isDragging ? 'item-dragging' : ''} ${!item.available ? 'item-row-unavailable' : ''}`}
@@ -279,6 +418,7 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
       <div className="item-info">
         <div className="item-name">{item.name}</div>
         {item.description && <div className="item-desc">{item.description}</div>}
+        <AdminBadges item={item} />
       </div>
       <div className="row">
         <span className="item-price">{Number(item.price).toLocaleString('cs-CZ')} Kč</span>
@@ -291,10 +431,15 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
           <span className="slider" />
         </label>
         <button onClick={onEdit}>Upravit</button>
+        <button onClick={onDuplicate} title="Duplikovat položku">⧉</button>
         <button className="danger" onClick={onDelete}>×</button>
       </div>
     </div>
   );
+}
+
+function normalizeText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
@@ -304,6 +449,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
   const [editingItem, setEditingItem] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
   const [tab, setTab] = useState('menu');
+  const [search, setSearch] = useState('');
   const dragRef = useRef({ kind: null, id: null, categoryId: null });
   const [dragKey, setDragKey] = useState(null);
 
@@ -340,6 +486,70 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
+  }
+
+  async function duplicateItem(id) {
+    try {
+      await api.duplicateItem(id);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function setCategoryAvailability(id, available) {
+    const verb = available ? 'jako dostupné' : 'jako nedostupné';
+    if (!confirm(`Označit všechny položky v této kategorii ${verb}?`)) return;
+    try {
+      await api.setCategoryAvailability(id, available);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function seedDemo() {
+    const empty = !data?.categories || data.categories.length === 0;
+    if (!empty && !confirm('Tím se přepíše vaše současné menu ukázkovými daty. Pokračovat?')) return;
+    try {
+      await api.seedDemo(empty ? false : true);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function exportMenu() {
+    try {
+      const exportData = await api.exportMenu();
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `qr-jidelnicek-${restaurant.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function importMenu(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const replace = !data?.categories || data.categories.length === 0
+        ? false
+        : confirm('Nahrát s přepsáním? OK = nahradit současné menu.\nZrušit = přidat ke stávajícímu menu.');
+      const result = await api.importMenu(json, replace);
+      alert(`Naimportováno: ${result.categories} kategorií, ${result.items} položek.`);
+      load();
+    } catch (err) {
+      setError(`Import selhal: ${err.message}`);
+    }
   }
 
   async function toggleAvailable(item, available) {
@@ -479,15 +689,37 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
         {tab === 'analytics' && <AnalyticsCard />}
 
         {tab === 'settings' && (
-          <SlugEditor
-            restaurant={restaurant}
-            onUpdated={(slug) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, custom_slug: slug })}
-          />
+          <>
+            <ProfileEditor
+              restaurant={restaurant}
+              onUpdated={(updated) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, ...updated })}
+            />
+            <SlugEditor
+              restaurant={restaurant}
+              onUpdated={(slug) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, custom_slug: slug })}
+            />
+          </>
         )}
 
         {tab === 'menu' && (
         <>
-        <h2>Kategorie a položky</h2>
+        <div className="row-spread" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>Kategorie a položky</h2>
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" onClick={exportMenu} title="Stáhnout JSON pro zálohu/migraci">
+              💾 Export menu
+            </button>
+            <label className="btn" style={{ display: 'inline-block', cursor: 'pointer' }}>
+              📤 Import menu
+              <input
+                type="file"
+                accept="application/json,.json"
+                style={{ display: 'none' }}
+                onChange={(e) => { importMenu(e.target.files?.[0]); e.target.value = ''; }}
+              />
+            </label>
+          </div>
+        </div>
 
         <form onSubmit={addCategory} className="card row">
           <input
@@ -498,11 +730,39 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
           <button className="primary">Přidat kategorii</button>
         </form>
 
-        {data.categories.length === 0 && (
-          <p className="muted">Zatím žádné kategorie. Začněte přidáním první.</p>
+        {data.categories.length > 0 && (
+          <div className="card" style={{ padding: 8 }}>
+            <input
+              type="search"
+              placeholder="🔍 Hledat položku v menu (název nebo popis)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ border: 'none', background: 'transparent' }}
+            />
+          </div>
         )}
 
-        {data.categories.map((c) => (
+        {data.categories.length === 0 && (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="muted">Zatím žádné kategorie. Začněte přidáním první nebo si nechte naplnit ukázkové menu.</p>
+            <button type="button" onClick={seedDemo} className="primary">📋 Naplnit ukázkové menu</button>
+          </div>
+        )}
+
+        {(() => {
+          const needle = normalizeText(search.trim());
+          const filtered = data.categories.map((c) => {
+            if (!needle) return c;
+            const items = c.items.filter((it) =>
+              normalizeText(`${it.name} ${it.description || ''} ${it.name_en || ''}`).includes(needle)
+            );
+            return { ...c, items, _hidden: items.length === 0 };
+          }).filter((c) => !needle || !c._hidden);
+
+          if (needle && filtered.length === 0) {
+            return <p className="muted">Žádná položka neodpovídá „{search}".</p>;
+          }
+          return filtered.map((c) => (
           <div
             className={`card ${dragKey === `cat-${c.id}` ? 'card-dragging' : ''}`}
             key={c.id}
@@ -513,6 +773,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
               category={c}
               onRename={(name) => renameCategory(c.id, name)}
               onDelete={() => deleteCategory(c.id)}
+              onBulkAvailability={(v) => setCategoryAvailability(c.id, v)}
               dragHandlers={{
                 draggable: true,
                 onDragStart: () => startDragCategory(c.id),
@@ -538,6 +799,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
                     item={it}
                     onEdit={() => setEditingItem(it)}
                     onDelete={() => deleteItem(it.id)}
+                    onDuplicate={() => duplicateItem(it.id)}
                     onToggleAvailable={(v) => toggleAvailable(it, v)}
                     isDragging={dragKey === `item-${it.id}`}
                     dragHandlers={{
@@ -567,7 +829,8 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
               <button onClick={() => setAddingTo(c.id)} style={{ marginTop: 8 }}>+ Přidat položku</button>
             )}
           </div>
-        ))}
+          ));
+        })()}
         </>
         )}
       </div>
@@ -578,6 +841,9 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
 export default function Admin() {
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const resetTokenFromUrl = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('reset')
+    : null;
 
   // Dark theme — applied at body level so it can't be overridden by anything
   useLayoutEffect(() => {
@@ -593,12 +859,18 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    // If user lands here with ?reset=… we force re-auth flow even if a stale token exists.
+    if (resetTokenFromUrl) {
+      setToken(null);
+      setLoading(false);
+      return;
+    }
     if (!getToken()) { setLoading(false); return; }
     api.me()
       .then(setRestaurant)
       .catch(() => setToken(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [resetTokenFromUrl]);
 
   function logout() {
     setToken(null);
@@ -606,6 +878,6 @@ export default function Admin() {
   }
 
   if (loading) return <div className="container"><p>Načítání…</p></div>;
-  if (!restaurant) return <AuthForm onAuth={setRestaurant} />;
+  if (!restaurant) return <AuthForm onAuth={setRestaurant} resetTokenFromUrl={resetTokenFromUrl} />;
   return <Dashboard restaurant={restaurant} onLogout={logout} onRestaurantUpdated={setRestaurant} />;
 }

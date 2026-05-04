@@ -1,6 +1,6 @@
 # QR Jídelníček Pro
 
-Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
+Digitální menu pro české restaurace s QR kódem. SaaS, 299 Kč/měsíc.
 
 ## Stack
 - **Backend**: Node.js (≥ 22.5) + Express + vestavěný `node:sqlite`
@@ -19,9 +19,10 @@ Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 - **Vyhledávání a filtrování** v menu
 - **CS / EN** přepínač
 - **QR ke stažení** v PNG (1024 px) i SVG
-- **Stripe billing** — měsíční předplatné 199 Kč, trial, webhooky pro aktivaci/expiraci
+- **Stripe billing** — měsíční předplatné 299 Kč, trial, webhooky pro aktivaci/expiraci
 - **Transakční e-maily** — payment-confirmed, trial-expiring (Resend, dry-run režim bez API klíče)
 - **Ukázkové menu** — `/api/admin/seed-demo`
+- **PWA / offline menu** — service worker (`/sw.js`) + `manifest.json`. V produkci se zaregistruje automaticky; veřejné menu funguje offline (stale-while-revalidate). Restaurace se špatným signálem? Nevadí.
 
 ## Struktura
 ```
@@ -83,6 +84,9 @@ V kořeni `.env.example`:
 | `STRIPE_WEBHOOK_SECRET` | _(volitelné)_ | Bez něj se webhook signature neověřuje (jen JSON parse) |
 | `RESEND_API_KEY` | _(volitelné)_ | Bez něj jdou e-maily do dry-run režimu (jen log) |
 | `EMAIL_FROM` | `QR Jidelnicek <onboarding@resend.dev>` | Odesílatel transakčních e-mailů |
+| `CORS_ORIGINS` | _(prázdné)_ | Comma-separated allowlist origins. V produkci nech prázdné pokud single-process; nastav frontend domény, pokud běží odděleně. `*` povolí vše (jen dev). |
+| `NODE_ENV` | `development` | V produkci nastav `production` — vypne fallback "allow all" CORS chování. |
+| `DISABLE_RATE_LIMIT` | _(prázdné)_ | Nastav `1` pouze v testech — vypne rate-limiting `/api/auth/*`. |
 
 Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech prázdné, v produkci stejné nech, pokud běží jako single-process — všechna API volání jsou relativní (`/api/...`).
 
@@ -96,6 +100,8 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 ### Auth
 - `POST /api/auth/register` — `{ name, email, password, slug? }`
 - `POST /api/auth/login` — `{ email, password }`
+- `POST /api/auth/forgot` — `{ email }` — vždy vrací 200 (anti-enumeration). Pošle e-mail s tokenem (1h platnost) přes Resend.
+- `POST /api/auth/reset` — `{ token, password }` — vrací nový JWT.
 
 ### Admin (Bearer token)
 - `GET    /api/admin/me`
@@ -109,9 +115,16 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 - `PUT    /api/admin/items/:id`
 - `PUT    /api/admin/items/:id/order` — `{ position }`
 - `PATCH  /api/admin/items/:id/availability` — `{ available }`
+- `PATCH  /api/admin/categories/:id/availability` — `{ available }` (bulk: označí všechny položky kategorie)
+- `POST   /api/admin/items/:id/duplicate` — vrací nový `{ id, position }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
 - `DELETE /api/admin/items/:id`
-- `POST   /api/admin/seed-demo`
+- `POST   /api/admin/seed-demo` — `{ force: bool }`. Bez `force=true` vrací 409 pokud už menu obsahuje kategorie.
+- `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
+- `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
+- `PUT    /api/admin/profile` — `{ name?, logo_url?, phone?, address?, opening_hours?, website_url? }`
+- `GET    /api/admin/menu/export` — JSON dump celého menu (schema_version: 1). Bez obrázků (data: URLs by zbytečně bobtnaly).
+- `POST   /api/admin/menu/import` — `{ schema_version: 1, categories: [...], replace?: bool }`. `replace: true` smaže současné menu před importem.
 
 ### Billing (Stripe)
 - `GET  /api/billing/status` — info o předplatném, trial dnech zbývajících

@@ -7,6 +7,37 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+const ITEM_FLAG_FIELDS = ['is_vegetarian', 'is_vegan', 'is_gluten_free', 'is_lactose_free', 'is_spicy', 'is_featured'];
+const ALLERGEN_CODES = new Set(['1','2','3','4','5','6','7','8','9','10','11','12','13','14']);
+
+function parseAllergens(raw) {
+  if (raw == null) return null;
+  let arr = raw;
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw); } catch { arr = []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const v of arr) {
+    const code = String(v).trim();
+    if (ALLERGEN_CODES.has(code) && !out.includes(code)) out.push(code);
+  }
+  return out;
+}
+
+function decodeAllergens(stored) {
+  if (!stored) return [];
+  try {
+    const arr = JSON.parse(stored);
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+
+function bool01(v) {
+  if (v === undefined || v === null) return null;
+  return v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0;
+}
+
 function getDefaultMenu(restaurantId) {
   return db.prepare(
     'SELECT id FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY id ASC LIMIT 1'
@@ -78,9 +109,37 @@ router.get('/analytics', (req, res) => {
 
 router.get('/me', (req, res) => {
   const r = db.prepare(
-    'SELECT id, name, slug, custom_slug, email, plan, created_at FROM restaurants WHERE id = ?'
+    `SELECT id, name, slug, custom_slug, email, plan, created_at,
+            logo_url, phone, address, opening_hours, website_url
+     FROM restaurants WHERE id = ?`
   ).get(req.user.id);
   if (!r) return res.status(404).json({ error: 'not found' });
+  res.json(r);
+});
+
+router.put('/profile', (req, res) => {
+  const body = req.body || {};
+  const sets = [];
+  const vals = [];
+  if (body.name !== undefined) {
+    const n = String(body.name).trim();
+    if (n.length === 0 || n.length > 120) return res.status(400).json({ error: 'name must be 1-120 chars' });
+    sets.push('name = ?'); vals.push(n);
+  }
+  for (const f of ['logo_url', 'phone', 'address', 'opening_hours', 'website_url']) {
+    if (body[f] !== undefined) {
+      const v = body[f] == null ? null : String(body[f]).trim();
+      sets.push(`${f} = ?`); vals.push(v && v.length > 0 ? v.slice(0, 4096) : null);
+    }
+  }
+  if (sets.length === 0) return res.json({ ok: true });
+  vals.push(req.user.id);
+  db.prepare(`UPDATE restaurants SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  const r = db.prepare(
+    `SELECT id, name, slug, custom_slug, email, plan, created_at,
+            logo_url, phone, address, opening_hours, website_url
+     FROM restaurants WHERE id = ?`
+  ).get(req.user.id);
   res.json(r);
 });
 
@@ -124,14 +183,26 @@ router.get('/menu', (req, res) => {
   ).all(menu.id);
 
   const itemStmt = db.prepare(
-    'SELECT id, name, description, price, image_url, available, position, name_en, description_en FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
+    `SELECT id, name, description, price, image_url, available, position, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE category_id = ? ORDER BY position ASC, id ASC`
   );
 
   res.json({
     menu,
     categories: categories.map((c) => ({
       ...c,
-      items: itemStmt.all(c.id).map((it) => ({ ...it, available: !!it.available })),
+      items: itemStmt.all(c.id).map((it) => ({
+        ...it,
+        available: !!it.available,
+        is_vegetarian: !!it.is_vegetarian,
+        is_vegan: !!it.is_vegan,
+        is_gluten_free: !!it.is_gluten_free,
+        is_lactose_free: !!it.is_lactose_free,
+        is_spicy: !!it.is_spicy,
+        is_featured: !!it.is_featured,
+        allergens: decodeAllergens(it.allergens),
+      })),
     })),
   });
 });
@@ -186,7 +257,8 @@ router.delete('/categories/:id', (req, res) => {
 });
 
 router.post('/items', (req, res) => {
-  const { category_id, name, description, price, image_url, available, name_en, description_en } = req.body || {};
+  const body = req.body || {};
+  const { category_id, name, description, price, image_url, available, name_en, description_en } = body;
   if (!category_id || !name) return res.status(400).json({ error: 'category_id and name are required' });
   if (!ownsCategory(req.user.id, category_id)) return res.status(403).json({ error: 'forbidden' });
 
@@ -194,9 +266,14 @@ router.post('/items', (req, res) => {
     'SELECT COALESCE(MAX(position) + 1, 0) AS n FROM items WHERE category_id = ?'
   ).get(category_id).n;
 
+  const allergens = parseAllergens(body.allergens) || [];
+
   const result = db.prepare(`
-    INSERT INTO items (category_id, name, description, price, image_url, available, position, name_en, description_en)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     category_id,
     name,
@@ -206,36 +283,43 @@ router.post('/items', (req, res) => {
     available === false ? 0 : 1,
     nextPos,
     name_en ? String(name_en) : null,
-    description_en ? String(description_en) : null
+    description_en ? String(description_en) : null,
+    bool01(body.is_vegetarian) || 0,
+    bool01(body.is_vegan) || 0,
+    bool01(body.is_gluten_free) || 0,
+    bool01(body.is_lactose_free) || 0,
+    bool01(body.is_spicy) || 0,
+    bool01(body.is_featured) || 0,
+    JSON.stringify(allergens)
   );
   res.status(201).json({ id: toNum(result.lastInsertRowid), position: nextPos });
 });
 
 router.put('/items/:id', (req, res) => {
   if (!ownsItem(req.user.id, req.params.id)) return res.status(404).json({ error: 'not found' });
-  const { name, description, price, image_url, available, name_en, description_en } = req.body || {};
-  db.prepare(`
-    UPDATE items SET
-      name = COALESCE(?, name),
-      description = COALESCE(?, description),
-      price = COALESCE(?, price),
-      image_url = COALESCE(?, image_url),
-      available = COALESCE(?, available),
-      name_en = CASE WHEN ? = 1 THEN ? ELSE name_en END,
-      description_en = CASE WHEN ? = 1 THEN ? ELSE description_en END
-    WHERE id = ?
-  `).run(
-    name ?? null,
-    description ?? null,
-    price !== undefined ? Number(price) : null,
-    image_url ?? null,
-    available === undefined ? null : (available ? 1 : 0),
-    name_en !== undefined ? 1 : 0,
-    name_en ? String(name_en) : null,
-    description_en !== undefined ? 1 : 0,
-    description_en ? String(description_en) : null,
-    req.params.id
-  );
+  const body = req.body || {};
+  const { name, description, price, image_url, available, name_en, description_en } = body;
+
+  const sets = [];
+  const vals = [];
+  if (name !== undefined) { sets.push('name = ?'); vals.push(String(name)); }
+  if (description !== undefined) { sets.push('description = ?'); vals.push(description == null ? null : String(description)); }
+  if (price !== undefined) { sets.push('price = ?'); vals.push(Number(price) || 0); }
+  if (image_url !== undefined) { sets.push('image_url = ?'); vals.push(image_url || null); }
+  if (available !== undefined) { sets.push('available = ?'); vals.push(available ? 1 : 0); }
+  if (name_en !== undefined) { sets.push('name_en = ?'); vals.push(name_en ? String(name_en) : null); }
+  if (description_en !== undefined) { sets.push('description_en = ?'); vals.push(description_en ? String(description_en) : null); }
+  for (const f of ITEM_FLAG_FIELDS) {
+    if (body[f] !== undefined) { sets.push(`${f} = ?`); vals.push(bool01(body[f])); }
+  }
+  if (body.allergens !== undefined) {
+    sets.push('allergens = ?');
+    vals.push(JSON.stringify(parseAllergens(body.allergens) || []));
+  }
+
+  if (sets.length === 0) return res.json({ ok: true });
+  vals.push(req.params.id);
+  db.prepare(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
   res.json({ ok: true });
 });
 
@@ -272,6 +356,294 @@ router.delete('/items/:id', (req, res) => {
   if (!ownsItem(req.user.id, req.params.id)) return res.status(404).json({ error: 'not found' });
   db.prepare('DELETE FROM items WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
+});
+
+router.post('/items/:id/duplicate', (req, res) => {
+  const item = ownsItem(req.user.id, req.params.id);
+  if (!item) return res.status(404).json({ error: 'not found' });
+
+  const src = db.prepare(
+    `SELECT name, description, price, image_url, available, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE id = ?`
+  ).get(req.params.id);
+  if (!src) return res.status(404).json({ error: 'not found' });
+
+  const nextPos = db.prepare(
+    'SELECT COALESCE(MAX(position) + 1, 0) AS n FROM items WHERE category_id = ?'
+  ).get(item.category_id).n;
+
+  const result = db.prepare(`
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    item.category_id,
+    `${src.name} (kopie)`,
+    src.description,
+    src.price,
+    src.image_url,
+    src.available,
+    nextPos,
+    src.name_en,
+    src.description_en,
+    src.is_vegetarian,
+    src.is_vegan,
+    src.is_gluten_free,
+    src.is_lactose_free,
+    src.is_spicy,
+    0, // duplicates lose featured flag — only one chef's pick at a time per source
+    src.allergens
+  );
+  res.status(201).json({ id: toNum(result.lastInsertRowid), position: nextPos });
+});
+
+router.patch('/categories/:id/availability', (req, res) => {
+  const cat = ownsCategory(req.user.id, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'not found' });
+  const { available } = req.body || {};
+  if (typeof available !== 'boolean') return res.status(400).json({ error: 'available must be boolean' });
+  const result = db.prepare('UPDATE items SET available = ? WHERE category_id = ?').run(available ? 1 : 0, req.params.id);
+  res.json({ ok: true, updated: toNum(result.changes) });
+});
+
+router.get('/menu/export', (req, res) => {
+  const r = db.prepare('SELECT id, name, slug FROM restaurants WHERE id = ?').get(req.user.id);
+  if (!r) return res.status(404).json({ error: 'not found' });
+
+  const menu = getDefaultMenu(req.user.id);
+  if (!menu) return res.status(400).json({ error: 'no active menu' });
+
+  const categories = db.prepare(
+    'SELECT id, name, "order" FROM categories WHERE menu_id = ? ORDER BY "order" ASC, id ASC'
+  ).all(menu.id);
+
+  const itemStmt = db.prepare(
+    `SELECT id, name, description, price, image_url, available, position, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE category_id = ? ORDER BY position ASC, id ASC`
+  );
+
+  const exportData = {
+    schema_version: 1,
+    exported_at: new Date().toISOString(),
+    restaurant: { name: r.name, slug: r.slug },
+    categories: categories.map((c) => ({
+      name: c.name,
+      order: c.order,
+      items: itemStmt.all(c.id).map((it) => ({
+        name: it.name,
+        name_en: it.name_en || null,
+        description: it.description || null,
+        description_en: it.description_en || null,
+        price: it.price,
+        position: it.position,
+        available: !!it.available,
+        is_vegetarian: !!it.is_vegetarian,
+        is_vegan: !!it.is_vegan,
+        is_gluten_free: !!it.is_gluten_free,
+        is_lactose_free: !!it.is_lactose_free,
+        is_spicy: !!it.is_spicy,
+        is_featured: !!it.is_featured,
+        allergens: decodeAllergens(it.allergens),
+        // image_url omitted intentionally — base64 data URLs bloat the JSON.
+        // Re-uploading images is the trade-off for portable, small exports.
+        has_image: !!it.image_url,
+      })),
+    })),
+  };
+
+  if (req.query.download) {
+    const filename = `qr-jidelnicek-${r.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.send(JSON.stringify(exportData, null, 2));
+});
+
+router.post('/menu/import', (req, res) => {
+  const data = req.body || {};
+  if (!data || data.schema_version !== 1 || !Array.isArray(data.categories)) {
+    return res.status(400).json({ error: 'Neplatný formát: očekáván schema_version: 1 a pole categories.' });
+  }
+
+  const menu = getDefaultMenu(req.user.id);
+  if (!menu) return res.status(400).json({ error: 'no active menu' });
+
+  const insertCat = db.prepare('INSERT INTO categories (menu_id, name, "order") VALUES (?, ?, ?)');
+  const insertItem = db.prepare(`
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  let totalCats = 0;
+  let totalItems = 0;
+  const tx = db.transaction(() => {
+    if (data.replace === true) {
+      db.prepare('DELETE FROM categories WHERE menu_id = ?').run(menu.id);
+    }
+    const baseCatOrder = data.replace === true ? 0
+      : (db.prepare('SELECT COALESCE(MAX("order") + 1, 0) AS n FROM categories WHERE menu_id = ?').get(menu.id).n);
+
+    data.categories.forEach((cat, ci) => {
+      if (typeof cat?.name !== 'string' || !cat.name.trim()) return;
+      const catRes = insertCat.run(menu.id, String(cat.name).slice(0, 200), baseCatOrder + ci);
+      const catId = toNum(catRes.lastInsertRowid);
+      totalCats++;
+      const items = Array.isArray(cat.items) ? cat.items : [];
+      items.forEach((it, ii) => {
+        if (typeof it?.name !== 'string' || !it.name.trim()) return;
+        insertItem.run(
+          catId,
+          String(it.name).slice(0, 200),
+          it.description ? String(it.description).slice(0, 1000) : null,
+          Number(it.price) || 0,
+          it.available === false ? 0 : 1,
+          Number.isFinite(it.position) ? it.position : ii,
+          it.name_en ? String(it.name_en).slice(0, 200) : null,
+          it.description_en ? String(it.description_en).slice(0, 1000) : null,
+          bool01(it.is_vegetarian) || 0,
+          bool01(it.is_vegan) || 0,
+          bool01(it.is_gluten_free) || 0,
+          bool01(it.is_lactose_free) || 0,
+          bool01(it.is_spicy) || 0,
+          bool01(it.is_featured) || 0,
+          JSON.stringify(parseAllergens(it.allergens) || [])
+        );
+        totalItems++;
+      });
+    });
+  });
+  tx();
+
+  res.json({ ok: true, categories: totalCats, items: totalItems });
+});
+
+router.post('/categories/:id/move', (req, res) => {
+  const { direction } = req.body || {};
+  if (direction !== 'up' && direction !== 'down') {
+    return res.status(400).json({ error: 'direction must be "up" or "down"' });
+  }
+  const cat = ownsCategory(req.user.id, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'not found' });
+
+  const all = db.prepare(
+    'SELECT id FROM categories WHERE menu_id = ? ORDER BY "order" ASC, id ASC'
+  ).all(cat.menu_id).map((r) => r.id);
+  const idx = all.indexOf(Number(req.params.id));
+  const target = direction === 'up' ? idx - 1 : idx + 1;
+  if (idx < 0 || target < 0 || target >= all.length) return res.json({ ok: true, moved: false });
+  [all[idx], all[target]] = [all[target], all[idx]];
+
+  const upd = db.prepare('UPDATE categories SET "order" = ? WHERE id = ?');
+  db.transaction((list) => list.forEach((id, i) => upd.run(i, id)))(all);
+  res.json({ ok: true, moved: true });
+});
+
+router.post('/items/:id/move', (req, res) => {
+  const { direction } = req.body || {};
+  if (direction !== 'up' && direction !== 'down') {
+    return res.status(400).json({ error: 'direction must be "up" or "down"' });
+  }
+  const item = ownsItem(req.user.id, req.params.id);
+  if (!item) return res.status(404).json({ error: 'not found' });
+
+  const all = db.prepare(
+    'SELECT id FROM items WHERE category_id = ? ORDER BY position ASC, id ASC'
+  ).all(item.category_id).map((r) => r.id);
+  const idx = all.indexOf(Number(req.params.id));
+  const target = direction === 'up' ? idx - 1 : idx + 1;
+  if (idx < 0 || target < 0 || target >= all.length) return res.json({ ok: true, moved: false });
+  [all[idx], all[target]] = [all[target], all[idx]];
+
+  const upd = db.prepare('UPDATE items SET position = ? WHERE id = ?');
+  db.transaction((list) => list.forEach((id, i) => upd.run(i, id)))(all);
+  res.json({ ok: true, moved: true });
+});
+
+const DEMO_DATA = [
+  {
+    name: 'Předkrmy', items: [
+      { name: 'Hovězí carpaccio', name_en: 'Beef carpaccio', description: 'S parmazánem a rukolou', description_en: 'With parmesan and arugula', price: 219, allergens: ['1', '7'], is_featured: 1, is_lactose_free: 0 },
+      { name: 'Salát Caprese', name_en: 'Caprese salad', description: 'Buvolí mozzarella, rajčata, bazalka', description_en: 'Buffalo mozzarella, tomatoes, basil', price: 189, allergens: ['7'], is_vegetarian: 1, is_gluten_free: 1 },
+      { name: 'Bruschetta', name_en: 'Bruschetta', description: 'S rajčaty a česnekem', description_en: 'With tomatoes and garlic', price: 149, allergens: ['1'], is_vegetarian: 1, is_vegan: 1 },
+    ],
+  },
+  {
+    name: 'Polévky', items: [
+      { name: 'Hovězí vývar', name_en: 'Beef broth', description: 'S játrovými knedlíčky a nudlemi', description_en: 'With liver dumplings and noodles', price: 89, allergens: ['1', '3', '9'] },
+      { name: 'Krémová dýňová', name_en: 'Cream of pumpkin', description: 'Se semínky a smetanou', description_en: 'With seeds and cream', price: 99, allergens: ['7'], is_vegetarian: 1, is_gluten_free: 1 },
+    ],
+  },
+  {
+    name: 'Hlavní jídla', items: [
+      { name: 'Svíčková na smetaně', name_en: 'Beef sirloin in cream sauce', description: 'S knedlíkem a brusinkami', description_en: 'With dumpling and cranberries', price: 269, allergens: ['1', '3', '7', '9'], is_featured: 1 },
+      { name: 'Pečená kachna', name_en: 'Roast duck', description: 'Se zelím a knedlíkem', description_en: 'With cabbage and dumplings', price: 329, allergens: ['1', '3'] },
+      { name: 'Smažený sýr', name_en: 'Fried cheese', description: 'S hranolkami a tatarskou omáčkou', description_en: 'With fries and tartar sauce', price: 199, allergens: ['1', '3', '7', '10'], is_vegetarian: 1 },
+      { name: 'Risotto s houbami', name_en: 'Mushroom risotto', description: 'Carnaroli, lesní houby, parmazán', description_en: 'Carnaroli, forest mushrooms, parmesan', price: 249, allergens: ['7', '9'], is_vegetarian: 1, is_gluten_free: 1 },
+      { name: 'Pikantní kuřecí curry', name_en: 'Spicy chicken curry', description: 'S basmati rýží', description_en: 'With basmati rice', price: 239, allergens: ['7'], is_spicy: 1, is_lactose_free: 0 },
+    ],
+  },
+  {
+    name: 'Dezerty', items: [
+      { name: 'Domácí palačinky', name_en: 'Homemade crepes', description: 'S nutellou a šlehačkou', description_en: 'With Nutella and whipped cream', price: 129, allergens: ['1', '3', '7', '8'], is_vegetarian: 1 },
+      { name: 'Tiramisu', name_en: 'Tiramisu', description: 'Klasické italské', description_en: 'Classic Italian', price: 119, allergens: ['1', '3', '7'], is_vegetarian: 1, is_featured: 1 },
+    ],
+  },
+  {
+    name: 'Nápoje', items: [
+      { name: 'Pilsner Urquell 0,5l', name_en: 'Pilsner Urquell 0.5L', description: '', description_en: '', price: 65, allergens: ['1'] },
+      { name: 'Domácí limonáda', name_en: 'Homemade lemonade', description: 'Citron, máta, zázvor', description_en: 'Lemon, mint, ginger', price: 89, allergens: [], is_vegan: 1, is_gluten_free: 1 },
+      { name: 'Espresso', name_en: 'Espresso', description: '', description_en: '', price: 55, allergens: [], is_vegan: 1, is_gluten_free: 1 },
+    ],
+  },
+];
+
+router.post('/seed-demo', (req, res) => {
+  const menu = getDefaultMenu(req.user.id);
+  if (!menu) return res.status(400).json({ error: 'no active menu' });
+
+  const existing = db.prepare('SELECT COUNT(*) AS n FROM categories WHERE menu_id = ?').get(menu.id).n;
+  if (toNum(existing) > 0 && !req.body?.force) {
+    return res.status(409).json({ error: 'menu_not_empty', message: 'Menu už obsahuje kategorie. Pošlete { force: true } pro přepsání.' });
+  }
+  if (req.body?.force) {
+    db.prepare('DELETE FROM categories WHERE menu_id = ?').run(menu.id);
+  }
+
+  const insertCat = db.prepare('INSERT INTO categories (menu_id, name, "order") VALUES (?, ?, ?)');
+  const insertItem = db.prepare(`
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const tx = db.transaction(() => {
+    DEMO_DATA.forEach((cat, ci) => {
+      const catRes = insertCat.run(menu.id, cat.name, ci);
+      const catId = toNum(catRes.lastInsertRowid);
+      cat.items.forEach((it, ii) => {
+        insertItem.run(
+          catId, it.name, it.description || null, it.price, ii,
+          it.name_en || null, it.description_en || null,
+          it.is_vegetarian ? 1 : 0,
+          it.is_vegan ? 1 : 0,
+          it.is_gluten_free ? 1 : 0,
+          it.is_lactose_free ? 1 : 0,
+          it.is_spicy ? 1 : 0,
+          it.is_featured ? 1 : 0,
+          JSON.stringify(it.allergens || [])
+        );
+      });
+    });
+  });
+  tx();
+
+  res.json({ ok: true, categories: DEMO_DATA.length, items: DEMO_DATA.reduce((n, c) => n + c.items.length, 0) });
 });
 
 module.exports = router;

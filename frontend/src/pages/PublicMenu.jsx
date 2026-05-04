@@ -127,6 +127,8 @@ export default function PublicMenu() {
     ? categories.flatMap((c) => c.items.filter((it) => it.is_featured && it.available))
     : [];
 
+  const hasProfile = !!(restaurant.phone || restaurant.address || restaurant.opening_hours || restaurant.website_url);
+
   return (
     <div>
       <div className="menu-header">
@@ -137,7 +139,28 @@ export default function PublicMenu() {
         >
           {lang === 'cs' ? 'EN' : 'CS'}
         </button>
+        {restaurant.logo_url && (
+          <img src={restaurant.logo_url} alt={restaurant.name} className="restaurant-logo" />
+        )}
         <h1>{restaurant.name}</h1>
+        {hasProfile && (
+          <div className="restaurant-profile">
+            {restaurant.address && (
+              <div>📍 {restaurant.address}</div>
+            )}
+            {restaurant.phone && (
+              <div>
+                📞 <a href={`tel:${restaurant.phone.replace(/\s/g, '')}`} style={{ color: 'inherit' }}>{restaurant.phone}</a>
+              </div>
+            )}
+            {restaurant.website_url && (
+              <div>🌐 <a href={restaurant.website_url} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{restaurant.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a></div>
+            )}
+            {restaurant.opening_hours && (
+              <div className="opening-hours">🕐 {restaurant.opening_hours}</div>
+            )}
+          </div>
+        )}
       </div>
       <div className="container">
         {categories.length === 0 && (
