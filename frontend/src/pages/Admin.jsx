@@ -438,6 +438,10 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, onDuplicate, dragH
   );
 }
 
+function normalizeText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -445,6 +449,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
   const [editingItem, setEditingItem] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
   const [tab, setTab] = useState('menu');
+  const [search, setSearch] = useState('');
   const dragRef = useRef({ kind: null, id: null, categoryId: null });
   const [dragKey, setDragKey] = useState(null);
 
@@ -725,6 +730,18 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
           <button className="primary">Přidat kategorii</button>
         </form>
 
+        {data.categories.length > 0 && (
+          <div className="card" style={{ padding: 8 }}>
+            <input
+              type="search"
+              placeholder="🔍 Hledat položku v menu (název nebo popis)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ border: 'none', background: 'transparent' }}
+            />
+          </div>
+        )}
+
         {data.categories.length === 0 && (
           <div className="card" style={{ textAlign: 'center' }}>
             <p className="muted">Zatím žádné kategorie. Začněte přidáním první nebo si nechte naplnit ukázkové menu.</p>
@@ -732,7 +749,20 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
           </div>
         )}
 
-        {data.categories.map((c) => (
+        {(() => {
+          const needle = normalizeText(search.trim());
+          const filtered = data.categories.map((c) => {
+            if (!needle) return c;
+            const items = c.items.filter((it) =>
+              normalizeText(`${it.name} ${it.description || ''} ${it.name_en || ''}`).includes(needle)
+            );
+            return { ...c, items, _hidden: items.length === 0 };
+          }).filter((c) => !needle || !c._hidden);
+
+          if (needle && filtered.length === 0) {
+            return <p className="muted">Žádná položka neodpovídá „{search}".</p>;
+          }
+          return filtered.map((c) => (
           <div
             className={`card ${dragKey === `cat-${c.id}` ? 'card-dragging' : ''}`}
             key={c.id}
@@ -799,7 +829,8 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
               <button onClick={() => setAddingTo(c.id)} style={{ marginTop: 8 }}>+ Přidat položku</button>
             )}
           </div>
-        ))}
+          ));
+        })()}
         </>
         )}
       </div>
