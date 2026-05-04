@@ -55,7 +55,7 @@ export const api = {
   setItemAvailability: (id, available) => request('PATCH', `/api/admin/items/${id}/availability`, { available }, true),
   deleteItem: (id) => request('DELETE', `/api/admin/items/${id}`, null, true),
   moveItem: (id, direction) => request('POST', `/api/admin/items/${id}/move`, { direction }, true),
-  seedDemo: () => request('POST', '/api/admin/seed-demo', {}, true),
+  seedDemo: (force = false) => request('POST', '/api/admin/seed-demo', { force }, true),
   analytics: () => request('GET', '/api/admin/analytics', null, true),
   updateSlug: (id, slug) => request('PUT', `/api/admin/restaurants/${id}/slug`, { slug }, true),
 };

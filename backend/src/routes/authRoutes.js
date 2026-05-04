@@ -4,8 +4,24 @@ const db = require('../db');
 const { toNum } = require('../db');
 const { signToken } = require('../auth');
 const emailService = require('../services/emailService');
+const { createRateLimiter } = require('../utils/rateLimit');
 
 const router = express.Router();
+
+// Rate limiters — disabled when DISABLE_RATE_LIMIT is set (test env).
+const noop = (req, res, next) => next();
+const rateLimitsDisabled = process.env.DISABLE_RATE_LIMIT === '1';
+
+const loginLimiter = rateLimitsDisabled ? noop : createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Příliš mnoho pokusů o přihlášení. Zkuste to prosím za 15 minut.',
+});
+const registerLimiter = rateLimitsDisabled ? noop : createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: 'Překročen limit registrací z této IP. Zkuste to prosím za hodinu.',
+});
 
 function slugify(input) {
   return String(input)
@@ -16,10 +32,21 @@ function slugify(input) {
     .slice(0, 60);
 }
 
-router.post('/register', async (req, res) => {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+router.post('/register', registerLimiter, async (req, res) => {
   const { name, email, password, slug } = req.body || {};
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'name, email and password are required' });
+  }
+  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'invalid email format' });
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'password must be at least 6 characters' });
+  }
+  if (typeof name !== 'string' || name.trim().length === 0 || name.length > 120) {
+    return res.status(400).json({ error: 'name must be 1-120 characters' });
   }
 
   let finalSlug = slugify(slug || name);
@@ -37,10 +64,17 @@ router.post('/register', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 10);
 
+  // 14-day trial — store as ISO without 'Z'; days-left calc reads it as UTC.
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('Z', '')
+    .replace('T', ' ')
+    .slice(0, 19);
+
   const insertRestaurant = db.prepare(
-    'INSERT INTO restaurants (name, slug, email, password_hash) VALUES (?, ?, ?, ?)'
+    'INSERT INTO restaurants (name, slug, email, password_hash, subscription_status, trial_expires_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
-  const result = insertRestaurant.run(name, finalSlug, email, hash);
+  const result = insertRestaurant.run(name, finalSlug, email, hash, 'trial', trialEndsAt);
   const restaurantId = toNum(result.lastInsertRowid);
 
   const menuResult = db.prepare(
@@ -60,7 +94,7 @@ router.post('/register', async (req, res) => {
   });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
 

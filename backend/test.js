@@ -53,7 +53,13 @@ function waitForServer(timeoutMs = 5000) {
 async function run() {
   console.log(`Starting server on port ${PORT} with DB=${TMP_DB}`);
   const server = spawn(process.execPath, [path.join(__dirname, 'src', 'server.js')], {
-    env: { ...process.env, PORT: String(PORT), DB_PATH: TMP_DB, JWT_SECRET: 'test-secret' },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      DB_PATH: TMP_DB,
+      JWT_SECRET: 'test-secret',
+      DISABLE_RATE_LIMIT: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.on('data', () => {});
@@ -160,6 +166,86 @@ async function run() {
       const ct = r.headers.get('content-type') || '';
       assert(r.status === 200, 'GET /api/qr/:slug returns 200');
       assert(ct.includes('image/png'), 'GET /api/qr/:slug returns image/png');
+    }
+
+    // 6b. QR SVG / PDF
+    {
+      const svg = await fetch(`${BASE}/api/qr/${slug}?format=svg`);
+      assert(svg.status === 200 && (svg.headers.get('content-type') || '').includes('image/svg'),
+        'GET /api/qr/:slug?format=svg returns image/svg+xml');
+      const pdf = await fetch(`${BASE}/api/qr/${slug}?format=pdf`);
+      assert(pdf.status === 200 && (pdf.headers.get('content-type') || '').includes('application/pdf'),
+        'GET /api/qr/:slug?format=pdf returns application/pdf');
+    }
+
+    // 7. Seed demo + retrieve dietary flags + allergens via admin
+    let categoryId = null;
+    {
+      const seed = await fetchJson(`${BASE}/api/admin/seed-demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      assert(seed.status === 200 && seed.body && seed.body.ok === true, 'POST /api/admin/seed-demo returns ok');
+
+      const adminMenu = await fetchJson(`${BASE}/api/admin/menu`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert(adminMenu.status === 200 && Array.isArray(adminMenu.body.categories) && adminMenu.body.categories.length > 0,
+        'admin/menu returns seeded categories');
+      categoryId = adminMenu.body.categories[0].id;
+      const firstCat = adminMenu.body.categories[0];
+      const someItem = firstCat.items[0];
+      assert(typeof someItem.is_vegetarian === 'boolean', 'item has boolean is_vegetarian flag');
+      assert(Array.isArray(someItem.allergens), 'item has allergens array');
+    }
+
+    // 8. Public menu returns dietary flags + allergens
+    {
+      const r = await fetchJson(`${BASE}/api/menu/${slug}`);
+      assert(r.status === 200, 'public menu returns 200');
+      const cat = r.body.categories[0];
+      const it = cat.items[0];
+      assert(typeof it.is_vegetarian === 'boolean', 'public item has boolean is_vegetarian');
+      assert(Array.isArray(it.allergens), 'public item has allergens array');
+    }
+
+    // 9. Create custom item with flags + allergens
+    if (categoryId) {
+      const createRes = await fetchJson(`${BASE}/api/admin/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          category_id: categoryId,
+          name: 'Test pikantní vegan jídlo',
+          price: 199,
+          is_vegan: true,
+          is_spicy: true,
+          is_featured: true,
+          allergens: ['1', '7', '99'],  // 99 should be filtered out
+        }),
+      });
+      assert(createRes.status === 201 && createRes.body && typeof createRes.body.id === 'number',
+        'POST /api/admin/items with flags+allergens returns 201');
+
+      const reload = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      const newItem = reload.body.categories
+        .flatMap((c) => c.items)
+        .find((it) => it.id === createRes.body.id);
+      assert(!!newItem && newItem.is_vegan === true && newItem.is_spicy === true && newItem.is_featured === true,
+        'created item retains flags');
+      assert(!!newItem && Array.isArray(newItem.allergens) && newItem.allergens.includes('1') && newItem.allergens.includes('7') && !newItem.allergens.includes('99'),
+        'allergens are validated against EU 1-14');
+    }
+
+    // 10. Move endpoints
+    if (categoryId) {
+      const r = await fetchJson(`${BASE}/api/admin/categories/${categoryId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ direction: 'down' }),
+      });
+      assert(r.status === 200, 'POST /api/admin/categories/:id/move returns 200');
     }
   } finally {
     cleanup();

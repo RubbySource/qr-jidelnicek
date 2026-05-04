@@ -4,6 +4,7 @@ import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
 import UpgradeButton from '../components/UpgradeButton';
 import SlugEditor from '../components/SlugEditor';
+import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -136,6 +137,15 @@ function ImageField({ value, onChange }) {
   );
 }
 
+const DIETARY_FLAGS = [
+  { key: 'is_featured', label: '★ Doporučujeme' },
+  { key: 'is_vegetarian', label: 'Vegetariánské' },
+  { key: 'is_vegan', label: 'Vegan' },
+  { key: 'is_gluten_free', label: 'Bez lepku' },
+  { key: 'is_lactose_free', label: 'Bez laktózy' },
+  { key: 'is_spicy', label: 'Pikantní' },
+];
+
 function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   const [form, setForm] = useState({
     name: item?.name || '',
@@ -145,9 +155,25 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
     available: item?.available ?? true,
     name_en: item?.name_en || '',
     description_en: item?.description_en || '',
+    is_featured: !!item?.is_featured,
+    is_vegetarian: !!item?.is_vegetarian,
+    is_vegan: !!item?.is_vegan,
+    is_gluten_free: !!item?.is_gluten_free,
+    is_lactose_free: !!item?.is_lactose_free,
+    is_spicy: !!item?.is_spicy,
+    allergens: Array.isArray(item?.allergens) ? [...item.allergens] : [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  function toggleAllergen(code) {
+    setForm((f) => ({
+      ...f,
+      allergens: f.allergens.includes(code)
+        ? f.allergens.filter((c) => c !== code)
+        : [...f.allergens, code],
+    }));
+  }
 
   async function save(e) {
     e.preventDefault();
@@ -209,6 +235,39 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
           />
         </label>
       </fieldset>
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>Stravovací značky</legend>
+        <div className="diet-grid">
+          {DIETARY_FLAGS.map((f) => (
+            <label key={f.key} className="diet-check">
+              <input
+                type="checkbox"
+                checked={!!form[f.key]}
+                onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })}
+              />
+              <span>{f.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>Alergeny (EU 1169/2011)</legend>
+        <div className="allergen-grid">
+          {ALLERGEN_CODES.map((code) => (
+            <label key={code} className={`allergen-chip ${form.allergens.includes(code) ? 'allergen-chip-active' : ''}`}>
+              <input
+                type="checkbox"
+                checked={form.allergens.includes(code)}
+                onChange={() => toggleAllergen(code)}
+                style={{ display: 'none' }}
+              />
+              <span><strong>{code}</strong> {ALLERGENS[code].cs}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <label className="row" style={{ marginTop: 12 }}>
         <input type="checkbox" checked={form.available} onChange={(e) => setForm({ ...form, available: e.target.checked })} style={{ width: 'auto', marginRight: 8 }} />
         Dostupné
@@ -267,6 +326,25 @@ function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
   );
 }
 
+function AdminBadges({ item }) {
+  const tags = [];
+  if (item.is_featured) tags.push({ k: 'featured', label: '★', cls: 'badge-featured' });
+  if (item.is_vegetarian) tags.push({ k: 'veg', label: 'Veg', cls: 'badge-veg' });
+  if (item.is_vegan) tags.push({ k: 'vegan', label: 'Vegan', cls: 'badge-vegan' });
+  if (item.is_gluten_free) tags.push({ k: 'gf', label: 'Bez lepku', cls: 'badge-gf' });
+  if (item.is_lactose_free) tags.push({ k: 'lf', label: 'Bez laktózy', cls: 'badge-lf' });
+  if (item.is_spicy) tags.push({ k: 'spicy', label: 'Pikantní', cls: 'badge-spicy' });
+  if (tags.length === 0 && (!item.allergens || item.allergens.length === 0)) return null;
+  return (
+    <div className="badges admin-badges">
+      {tags.map((t) => <span key={t.k} className={`badge ${t.cls}`}>{t.label}</span>)}
+      {item.allergens && item.allergens.length > 0 && (
+        <span className="badge badge-allergens" title="Alergeny">A: {item.allergens.join(', ')}</span>
+      )}
+    </div>
+  );
+}
+
 function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
   return (
     <div
@@ -279,6 +357,7 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
       <div className="item-info">
         <div className="item-name">{item.name}</div>
         {item.description && <div className="item-desc">{item.description}</div>}
+        <AdminBadges item={item} />
       </div>
       <div className="row">
         <span className="item-price">{Number(item.price).toLocaleString('cs-CZ')} Kč</span>
@@ -340,6 +419,17 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
+  }
+
+  async function seedDemo() {
+    const empty = !data?.categories || data.categories.length === 0;
+    if (!empty && !confirm('Tím se přepíše vaše současné menu ukázkovými daty. Pokračovat?')) return;
+    try {
+      await api.seedDemo(empty ? false : true);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function toggleAvailable(item, available) {
@@ -499,7 +589,10 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
         </form>
 
         {data.categories.length === 0 && (
-          <p className="muted">Zatím žádné kategorie. Začněte přidáním první.</p>
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="muted">Zatím žádné kategorie. Začněte přidáním první nebo si nechte naplnit ukázkové menu.</p>
+            <button type="button" onClick={seedDemo} className="primary">📋 Naplnit ukázkové menu</button>
+          </div>
         )}
 
         {data.categories.map((c) => (

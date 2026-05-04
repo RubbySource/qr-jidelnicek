@@ -84,6 +84,23 @@ if (!hasColumn('items', 'description_en')) {
   db.exec('ALTER TABLE items ADD COLUMN description_en TEXT DEFAULT NULL');
 }
 
+const ITEM_FLAG_COLUMNS = [
+  'is_vegetarian',
+  'is_vegan',
+  'is_gluten_free',
+  'is_lactose_free',
+  'is_spicy',
+  'is_featured',
+];
+for (const col of ITEM_FLAG_COLUMNS) {
+  if (!hasColumn('items', col)) {
+    db.exec(`ALTER TABLE items ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
+  }
+}
+if (!hasColumn('items', 'allergens')) {
+  db.exec("ALTER TABLE items ADD COLUMN allergens TEXT NOT NULL DEFAULT '[]'");
+}
+
 if (!hasColumn('restaurants', 'subscription_status')) {
   db.exec("ALTER TABLE restaurants ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'");
 }
@@ -127,4 +144,4 @@ function toNum(v) {
 }
 
 module.exports = db;
-module.exports.toN
+module.exports.toNum = toNum;

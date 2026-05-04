@@ -1,6 +1,6 @@
 # QR Jídelníček Pro
 
-Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
+Digitální menu pro české restaurace s QR kódem. SaaS, 299 Kč/měsíc.
 
 ## Stack
 - **Backend**: Node.js (≥ 22.5) + Express + vestavěný `node:sqlite`
@@ -19,7 +19,7 @@ Digitální menu pro české restaurace s QR kódem. SaaS, 199 Kč/měsíc.
 - **Vyhledávání a filtrování** v menu
 - **CS / EN** přepínač
 - **QR ke stažení** v PNG (1024 px) i SVG
-- **Stripe billing** — měsíční předplatné 199 Kč, trial, webhooky pro aktivaci/expiraci
+- **Stripe billing** — měsíční předplatné 299 Kč, trial, webhooky pro aktivaci/expiraci
 - **Transakční e-maily** — payment-confirmed, trial-expiring (Resend, dry-run režim bez API klíče)
 - **Ukázkové menu** — `/api/admin/seed-demo`
 
@@ -83,6 +83,9 @@ V kořeni `.env.example`:
 | `STRIPE_WEBHOOK_SECRET` | _(volitelné)_ | Bez něj se webhook signature neověřuje (jen JSON parse) |
 | `RESEND_API_KEY` | _(volitelné)_ | Bez něj jdou e-maily do dry-run režimu (jen log) |
 | `EMAIL_FROM` | `QR Jidelnicek <onboarding@resend.dev>` | Odesílatel transakčních e-mailů |
+| `CORS_ORIGINS` | _(prázdné)_ | Comma-separated allowlist origins. V produkci nech prázdné pokud single-process; nastav frontend domény, pokud běží odděleně. `*` povolí vše (jen dev). |
+| `NODE_ENV` | `development` | V produkci nastav `production` — vypne fallback "allow all" CORS chování. |
+| `DISABLE_RATE_LIMIT` | _(prázdné)_ | Nastav `1` pouze v testech — vypne rate-limiting `/api/auth/*`. |
 
 Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech prázdné, v produkci stejné nech, pokud běží jako single-process — všechna API volání jsou relativní (`/api/...`).
 
@@ -111,7 +114,9 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 - `PATCH  /api/admin/items/:id/availability` — `{ available }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
 - `DELETE /api/admin/items/:id`
-- `POST   /api/admin/seed-demo`
+- `POST   /api/admin/seed-demo` — `{ force: bool }`. Bez `force=true` vrací 409 pokud už menu obsahuje kategorie.
+- `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
+- `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
 
 ### Billing (Stripe)
 - `GET  /api/billing/status` — info o předplatném, trial dnech zbývajících
