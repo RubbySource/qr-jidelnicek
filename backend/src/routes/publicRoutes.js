@@ -19,12 +19,13 @@ const insertView = db.prepare(
 router.get('/menu/:slug', (req, res) => {
   const lang = req.query.lang === 'en' ? 'en' : 'cs';
 
+  const PROFILE_COLS = 'id, name, slug, logo_url, phone, address, opening_hours, website_url';
   let restaurant = db.prepare(
-    'SELECT id, name, slug FROM restaurants WHERE custom_slug = ?'
+    `SELECT ${PROFILE_COLS} FROM restaurants WHERE custom_slug = ?`
   ).get(req.params.slug);
   if (!restaurant) {
     restaurant = db.prepare(
-      'SELECT id, name, slug FROM restaurants WHERE slug = ?'
+      `SELECT ${PROFILE_COLS} FROM restaurants WHERE slug = ?`
     ).get(req.params.slug);
   }
   if (!restaurant) return res.status(404).json({ error: 'restaurant not found' });

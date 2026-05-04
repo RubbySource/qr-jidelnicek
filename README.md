@@ -117,6 +117,7 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 - `POST   /api/admin/seed-demo` — `{ force: bool }`. Bez `force=true` vrací 409 pokud už menu obsahuje kategorie.
 - `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
+- `PUT    /api/admin/profile` — `{ name?, logo_url?, phone?, address?, opening_hours?, website_url? }`
 
 ### Billing (Stripe)
 - `GET  /api/billing/status` — info o předplatném, trial dnech zbývajících

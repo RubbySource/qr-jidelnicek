@@ -58,4 +58,5 @@ export const api = {
   seedDemo: (force = false) => request('POST', '/api/admin/seed-demo', { force }, true),
   analytics: () => request('GET', '/api/admin/analytics', null, true),
   updateSlug: (id, slug) => request('PUT', `/api/admin/restaurants/${id}/slug`, { slug }, true),
+  updateProfile: (payload) => request('PUT', '/api/admin/profile', payload, true),
 };

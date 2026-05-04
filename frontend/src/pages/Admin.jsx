@@ -4,6 +4,7 @@ import { api, getToken, setToken } from '../api';
 import AnalyticsCard from '../components/AnalyticsCard';
 import UpgradeButton from '../components/UpgradeButton';
 import SlugEditor from '../components/SlugEditor';
+import ProfileEditor from '../components/ProfileEditor';
 import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
 function AuthForm({ onAuth }) {
@@ -569,10 +570,16 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
         {tab === 'analytics' && <AnalyticsCard />}
 
         {tab === 'settings' && (
-          <SlugEditor
-            restaurant={restaurant}
-            onUpdated={(slug) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, custom_slug: slug })}
-          />
+          <>
+            <ProfileEditor
+              restaurant={restaurant}
+              onUpdated={(updated) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, ...updated })}
+            />
+            <SlugEditor
+              restaurant={restaurant}
+              onUpdated={(slug) => onRestaurantUpdated && onRestaurantUpdated({ ...restaurant, custom_slug: slug })}
+            />
+          </>
         )}
 
         {tab === 'menu' && (

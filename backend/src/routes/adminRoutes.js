@@ -109,9 +109,37 @@ router.get('/analytics', (req, res) => {
 
 router.get('/me', (req, res) => {
   const r = db.prepare(
-    'SELECT id, name, slug, custom_slug, email, plan, created_at FROM restaurants WHERE id = ?'
+    `SELECT id, name, slug, custom_slug, email, plan, created_at,
+            logo_url, phone, address, opening_hours, website_url
+     FROM restaurants WHERE id = ?`
   ).get(req.user.id);
   if (!r) return res.status(404).json({ error: 'not found' });
+  res.json(r);
+});
+
+router.put('/profile', (req, res) => {
+  const body = req.body || {};
+  const sets = [];
+  const vals = [];
+  if (body.name !== undefined) {
+    const n = String(body.name).trim();
+    if (n.length === 0 || n.length > 120) return res.status(400).json({ error: 'name must be 1-120 chars' });
+    sets.push('name = ?'); vals.push(n);
+  }
+  for (const f of ['logo_url', 'phone', 'address', 'opening_hours', 'website_url']) {
+    if (body[f] !== undefined) {
+      const v = body[f] == null ? null : String(body[f]).trim();
+      sets.push(`${f} = ?`); vals.push(v && v.length > 0 ? v.slice(0, 4096) : null);
+    }
+  }
+  if (sets.length === 0) return res.json({ ok: true });
+  vals.push(req.user.id);
+  db.prepare(`UPDATE restaurants SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  const r = db.prepare(
+    `SELECT id, name, slug, custom_slug, email, plan, created_at,
+            logo_url, phone, address, opening_hours, website_url
+     FROM restaurants WHERE id = ?`
+  ).get(req.user.id);
   res.json(r);
 });
 

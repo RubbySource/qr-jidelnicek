@@ -247,6 +247,26 @@ async function run() {
       });
       assert(r.status === 200, 'POST /api/admin/categories/:id/move returns 200');
     }
+
+    // 11. Restaurant profile update + propagation to public menu
+    {
+      const upd = await fetchJson(`${BASE}/api/admin/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          phone: '+420 123 456 789',
+          address: 'Václavské náměstí 1, Praha 1',
+          opening_hours: 'Po-Pá: 11-22\nSo-Ne: 12-23',
+          website_url: 'https://example.cz',
+        }),
+      });
+      assert(upd.status === 200 && upd.body && upd.body.phone === '+420 123 456 789',
+        'PUT /api/admin/profile updates and returns profile');
+
+      const pub = await fetchJson(`${BASE}/api/menu/${slug}`);
+      assert(pub.status === 200 && pub.body.restaurant.phone === '+420 123 456 789' && pub.body.restaurant.address.startsWith('Václavské'),
+        'public menu returns restaurant profile fields');
+    }
   } finally {
     cleanup();
   }

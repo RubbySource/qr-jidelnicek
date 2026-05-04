@@ -130,6 +130,25 @@ if (!hasColumn('restaurants', 'custom_slug')) {
     }
   }
 }
+const RESTAURANT_PROFILE_COLUMNS = [
+  ['logo_url', 'TEXT'],
+  ['phone', 'TEXT'],
+  ['address', 'TEXT'],
+  ['opening_hours', 'TEXT'],
+  ['website_url', 'TEXT'],
+];
+for (const [col, type] of RESTAURANT_PROFILE_COLUMNS) {
+  if (!hasColumn('restaurants', col)) {
+    try {
+      db.exec(`ALTER TABLE restaurants ADD COLUMN ${col} ${type}`);
+    } catch (err) {
+      if (!/duplicate column/i.test(err.message)) {
+        console.error(`ALTER restaurants ADD ${col} failed:`, err);
+      }
+    }
+  }
+}
+
 // Only create index if the column actually exists now
 if (hasColumn('restaurants', 'custom_slug')) {
   try {

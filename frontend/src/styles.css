@@ -416,6 +416,30 @@ body.admin-dark p.muted {
 .menu-header {
   position: relative;
 }
+.restaurant-logo {
+  display: block;
+  margin: 0 auto 12px;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.1);
+}
+.restaurant-profile {
+  margin-top: 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.92);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.restaurant-profile a { color: inherit; text-decoration: underline; }
+.restaurant-profile .opening-hours {
+  white-space: pre-line;
+  text-align: center;
+}
 .lang-toggle {
   position: absolute;
   right: 16px;
