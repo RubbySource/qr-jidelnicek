@@ -487,6 +487,39 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
     }
   }
 
+  async function exportMenu() {
+    try {
+      const exportData = await api.exportMenu();
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `qr-jidelnicek-${restaurant.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function importMenu(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const replace = !data?.categories || data.categories.length === 0
+        ? false
+        : confirm('Nahrát s přepsáním? OK = nahradit současné menu.\nZrušit = přidat ke stávajícímu menu.');
+      const result = await api.importMenu(json, replace);
+      alert(`Naimportováno: ${result.categories} kategorií, ${result.items} položek.`);
+      load();
+    } catch (err) {
+      setError(`Import selhal: ${err.message}`);
+    }
+  }
+
   async function toggleAvailable(item, available) {
     setData((prev) => ({
       ...prev,
@@ -638,7 +671,23 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
 
         {tab === 'menu' && (
         <>
-        <h2>Kategorie a položky</h2>
+        <div className="row-spread" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>Kategorie a položky</h2>
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" onClick={exportMenu} title="Stáhnout JSON pro zálohu/migraci">
+              💾 Export menu
+            </button>
+            <label className="btn" style={{ display: 'inline-block', cursor: 'pointer' }}>
+              📤 Import menu
+              <input
+                type="file"
+                accept="application/json,.json"
+                style={{ display: 'none' }}
+                onChange={(e) => { importMenu(e.target.files?.[0]); e.target.value = ''; }}
+              />
+            </label>
+          </div>
+        </div>
 
         <form onSubmit={addCategory} className="card row">
           <input

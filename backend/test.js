@@ -269,6 +269,36 @@ async function run() {
       assert(r.status === 400, 'POST /api/auth/reset with bogus token returns 400');
     }
 
+    // 10d. Menu export → import roundtrip
+    {
+      const exp = await fetchJson(`${BASE}/api/admin/menu/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert(exp.status === 200 && exp.body && exp.body.schema_version === 1,
+        'GET /api/admin/menu/export returns schema_version=1');
+      assert(Array.isArray(exp.body.categories) && exp.body.categories.length > 0,
+        'export contains categories');
+
+      // Import same data with replace=true → categories count should match.
+      const imp = await fetchJson(`${BASE}/api/admin/menu/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...exp.body, replace: true }),
+      });
+      assert(imp.status === 200 && imp.body && imp.body.categories === exp.body.categories.length,
+        'import roundtrip restores same number of categories');
+    }
+
+    // 10e. Import with bad schema → 400
+    {
+      const r = await fetchJson(`${BASE}/api/admin/menu/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ foo: 'bar' }),
+      });
+      assert(r.status === 400, 'import rejects unknown schema with 400');
+    }
+
     // 11. Restaurant profile update + propagation to public menu
     {
       const upd = await fetchJson(`${BASE}/api/admin/profile`, {

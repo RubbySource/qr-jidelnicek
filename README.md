@@ -120,6 +120,8 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 - `POST   /api/admin/categories/:id/move` — `{ direction: "up"|"down" }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
 - `PUT    /api/admin/profile` — `{ name?, logo_url?, phone?, address?, opening_hours?, website_url? }`
+- `GET    /api/admin/menu/export` — JSON dump celého menu (schema_version: 1). Bez obrázků (data: URLs by zbytečně bobtnaly).
+- `POST   /api/admin/menu/import` — `{ schema_version: 1, categories: [...], replace?: bool }`. `replace: true` smaže současné menu před importem.
 
 ### Billing (Stripe)
 - `GET  /api/billing/status` — info o předplatném, trial dnech zbývajících

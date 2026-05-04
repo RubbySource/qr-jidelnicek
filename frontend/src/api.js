@@ -61,4 +61,6 @@ export const api = {
   analytics: () => request('GET', '/api/admin/analytics', null, true),
   updateSlug: (id, slug) => request('PUT', `/api/admin/restaurants/${id}/slug`, { slug }, true),
   updateProfile: (payload) => request('PUT', '/api/admin/profile', payload, true),
+  exportMenu: () => request('GET', '/api/admin/menu/export', null, true),
+  importMenu: (data, replace = false) => request('POST', '/api/admin/menu/import', { ...data, replace }, true),
 };

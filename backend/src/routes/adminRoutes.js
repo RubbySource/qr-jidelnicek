@@ -358,6 +358,120 @@ router.delete('/items/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+router.get('/menu/export', (req, res) => {
+  const r = db.prepare('SELECT id, name, slug FROM restaurants WHERE id = ?').get(req.user.id);
+  if (!r) return res.status(404).json({ error: 'not found' });
+
+  const menu = getDefaultMenu(req.user.id);
+  if (!menu) return res.status(400).json({ error: 'no active menu' });
+
+  const categories = db.prepare(
+    'SELECT id, name, "order" FROM categories WHERE menu_id = ? ORDER BY "order" ASC, id ASC'
+  ).all(menu.id);
+
+  const itemStmt = db.prepare(
+    `SELECT id, name, description, price, image_url, available, position, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE category_id = ? ORDER BY position ASC, id ASC`
+  );
+
+  const exportData = {
+    schema_version: 1,
+    exported_at: new Date().toISOString(),
+    restaurant: { name: r.name, slug: r.slug },
+    categories: categories.map((c) => ({
+      name: c.name,
+      order: c.order,
+      items: itemStmt.all(c.id).map((it) => ({
+        name: it.name,
+        name_en: it.name_en || null,
+        description: it.description || null,
+        description_en: it.description_en || null,
+        price: it.price,
+        position: it.position,
+        available: !!it.available,
+        is_vegetarian: !!it.is_vegetarian,
+        is_vegan: !!it.is_vegan,
+        is_gluten_free: !!it.is_gluten_free,
+        is_lactose_free: !!it.is_lactose_free,
+        is_spicy: !!it.is_spicy,
+        is_featured: !!it.is_featured,
+        allergens: decodeAllergens(it.allergens),
+        // image_url omitted intentionally — base64 data URLs bloat the JSON.
+        // Re-uploading images is the trade-off for portable, small exports.
+        has_image: !!it.image_url,
+      })),
+    })),
+  };
+
+  if (req.query.download) {
+    const filename = `qr-jidelnicek-${r.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.send(JSON.stringify(exportData, null, 2));
+});
+
+router.post('/menu/import', (req, res) => {
+  const data = req.body || {};
+  if (!data || data.schema_version !== 1 || !Array.isArray(data.categories)) {
+    return res.status(400).json({ error: 'Neplatný formát: očekáván schema_version: 1 a pole categories.' });
+  }
+
+  const menu = getDefaultMenu(req.user.id);
+  if (!menu) return res.status(400).json({ error: 'no active menu' });
+
+  const insertCat = db.prepare('INSERT INTO categories (menu_id, name, "order") VALUES (?, ?, ?)');
+  const insertItem = db.prepare(`
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  let totalCats = 0;
+  let totalItems = 0;
+  const tx = db.transaction(() => {
+    if (data.replace === true) {
+      db.prepare('DELETE FROM categories WHERE menu_id = ?').run(menu.id);
+    }
+    const baseCatOrder = data.replace === true ? 0
+      : (db.prepare('SELECT COALESCE(MAX("order") + 1, 0) AS n FROM categories WHERE menu_id = ?').get(menu.id).n);
+
+    data.categories.forEach((cat, ci) => {
+      if (typeof cat?.name !== 'string' || !cat.name.trim()) return;
+      const catRes = insertCat.run(menu.id, String(cat.name).slice(0, 200), baseCatOrder + ci);
+      const catId = toNum(catRes.lastInsertRowid);
+      totalCats++;
+      const items = Array.isArray(cat.items) ? cat.items : [];
+      items.forEach((it, ii) => {
+        if (typeof it?.name !== 'string' || !it.name.trim()) return;
+        insertItem.run(
+          catId,
+          String(it.name).slice(0, 200),
+          it.description ? String(it.description).slice(0, 1000) : null,
+          Number(it.price) || 0,
+          it.available === false ? 0 : 1,
+          Number.isFinite(it.position) ? it.position : ii,
+          it.name_en ? String(it.name_en).slice(0, 200) : null,
+          it.description_en ? String(it.description_en).slice(0, 1000) : null,
+          bool01(it.is_vegetarian) || 0,
+          bool01(it.is_vegan) || 0,
+          bool01(it.is_gluten_free) || 0,
+          bool01(it.is_lactose_free) || 0,
+          bool01(it.is_spicy) || 0,
+          bool01(it.is_featured) || 0,
+          JSON.stringify(parseAllergens(it.allergens) || [])
+        );
+        totalItems++;
+      });
+    });
+  });
+  tx();
+
+  res.json({ ok: true, categories: totalCats, items: totalItems });
+});
+
 router.post('/categories/:id/move', (req, res) => {
   const { direction } = req.body || {};
   if (direction !== 'up' && direction !== 'down') {
