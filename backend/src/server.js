@@ -89,7 +89,29 @@ app.post(
 
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, name: 'QR Jidelnicek Pro' }));
+// Cache a snapshot of package.json once at startup.
+let appVersion = 'unknown';
+try {
+  appVersion = require('../package.json').version || 'unknown';
+} catch { /* ignore */ }
+const startTime = Date.now();
+
+app.get('/api/health', (req, res) => {
+  let dbOk = false;
+  try {
+    db.prepare('SELECT 1 AS ok').get();
+    dbOk = true;
+  } catch (err) {
+    console.error('[health] DB check failed:', err.message);
+  }
+  res.status(dbOk ? 200 : 503).json({
+    ok: dbOk,
+    name: 'QR Jidelnicek Pro',
+    version: appVersion,
+    uptime_s: Math.round((Date.now() - startTime) / 1000),
+    db: dbOk ? 'ok' : 'fail',
+  });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);

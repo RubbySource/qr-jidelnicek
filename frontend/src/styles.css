@@ -621,3 +621,50 @@ body.admin-dark .badge-allergens { background: rgba(148,163,184,0.15) !important
   .item-price { align-self: flex-end; }
 }
 
+/* ═══════════════════════════════════════════════
+   PRINT STYLES — clean A4 menu printable from /menu/:slug
+   ═══════════════════════════════════════════════ */
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .menu-header {
+    background: #fff !important;
+    color: #000 !important;
+    border-bottom: 2px solid #000;
+    padding-bottom: 12px;
+    page-break-after: avoid;
+  }
+  .menu-header h1 { color: #000 !important; }
+  .restaurant-logo { border-color: #ccc !important; }
+  .lang-toggle { display: none !important; }
+  .menu-controls { display: none !important; }
+  .filter-chips { display: none !important; }
+
+  .category {
+    background: #fff !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    border: none !important;
+    padding: 8px 0 !important;
+    margin: 8px 0 !important;
+  }
+  .category h2 {
+    color: #000 !important;
+    border-bottom: 1px solid #999;
+    padding-bottom: 4px;
+  }
+  .category.specials {
+    background: #fff !important;
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+  }
+  .category.specials h2 { color: #000 !important; }
+
+  .item { page-break-inside: avoid; padding: 6px 0 !important; }
+  .badge { border: 1px solid #999; background: #fff !important; color: #000 !important; }
+  .item.unavailable { display: none !important; }
+  .restaurant-profile { color: #555 !important; }
+  .restaurant-profile a { color: #000 !important; text-decoration: none !important; }
+  a { color: #000 !important; }
+}
+
