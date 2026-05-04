@@ -1,9 +1,11 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { toNum } = require('../db');
 const { signToken } = require('../auth');
 const emailService = require('../services/emailService');
+const { sendEmail } = require('../email');
 const { createRateLimiter } = require('../utils/rateLimit');
 
 const router = express.Router();
@@ -21,6 +23,11 @@ const registerLimiter = rateLimitsDisabled ? noop : createRateLimiter({
   windowMs: 60 * 60 * 1000,
   max: 5,
   message: 'Překročen limit registrací z této IP. Zkuste to prosím za hodinu.',
+});
+const forgotLimiter = rateLimitsDisabled ? noop : createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: 'Příliš mnoho žádostí o obnovení hesla. Zkuste to prosím za hodinu.',
 });
 
 function slugify(input) {
@@ -108,6 +115,81 @@ router.post('/login', loginLimiter, async (req, res) => {
   res.json({
     token,
     restaurant: { id: row.id, name: row.name, slug: row.slug, email: row.email, plan: row.plan },
+  });
+});
+
+// Returns the SHA-256 hex digest of a token; we store this, not the raw token.
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+router.post('/forgot', forgotLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  // Always respond success to prevent email enumeration.
+  if (!email || typeof email !== 'string') return res.json({ ok: true });
+
+  const row = db.prepare('SELECT id, name, email FROM restaurants WHERE email = ?').get(email);
+  if (!row) {
+    // Constant-time-ish: do a fake bcrypt compare so timing leaks less info.
+    await bcrypt.compare('xxx', '$2a$10$abcdefghijklmnopqrstuv').catch(() => {});
+    return res.json({ ok: true });
+  }
+
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('Z', '').replace('T', ' ').slice(0, 19);
+
+  db.prepare(`
+    INSERT OR REPLACE INTO password_resets (token_hash, restaurant_id, expires_at, used_at)
+    VALUES (?, ?, ?, NULL)
+  `).run(tokenHash, row.id, expiresAt);
+
+  // Sweep old / used tokens.
+  db.prepare("DELETE FROM password_resets WHERE expires_at < datetime('now', '-7 days')").run();
+
+  const baseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+  const resetUrl = `${baseUrl.replace(/\/$/, '')}/admin?reset=${encodeURIComponent(token)}`;
+
+  sendEmail({
+    to: row.email,
+    subject: 'Obnovení hesla — QR Jídelníček Pro',
+    template: 'password-reset',
+    vars: { restaurantName: row.name ? ` (${row.name})` : '', resetUrl },
+  }).catch((err) => console.error('[auth/forgot] email failed:', err.message));
+
+  res.json({ ok: true });
+});
+
+router.post('/reset', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'token a password jsou povinné' });
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'password musí mít alespoň 6 znaků' });
+  }
+
+  const tokenHash = hashToken(String(token));
+  const row = db.prepare(`
+    SELECT pr.token_hash, pr.restaurant_id, pr.expires_at, pr.used_at, r.email, r.slug
+    FROM password_resets pr
+    JOIN restaurants r ON r.id = pr.restaurant_id
+    WHERE pr.token_hash = ?
+  `).get(tokenHash);
+
+  if (!row || row.used_at || new Date(row.expires_at + 'Z').getTime() < Date.now()) {
+    return res.status(400).json({ error: 'Odkaz pro obnovení hesla je neplatný nebo vypršel.' });
+  }
+
+  const hash = await bcrypt.hash(password, 10);
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE restaurants SET password_hash = ? WHERE id = ?').run(hash, row.restaurant_id);
+    db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE token_hash = ?").run(tokenHash);
+  });
+  tx();
+
+  const newToken = signToken({ id: row.restaurant_id, slug: row.slug });
+  res.json({
+    token: newToken,
+    restaurant: { id: row.restaurant_id, email: row.email, slug: row.slug },
   });
 });
 

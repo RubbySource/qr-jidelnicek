@@ -7,22 +7,37 @@ import SlugEditor from '../components/SlugEditor';
 import ProfileEditor from '../components/ProfileEditor';
 import { ALLERGENS, ALLERGEN_CODES, allergenLabel } from '../i18n';
 
-function AuthForm({ onAuth }) {
-  const [mode, setMode] = useState('login');
+function AuthForm({ onAuth, resetTokenFromUrl }) {
+  const [mode, setMode] = useState(resetTokenFromUrl ? 'reset' : 'login');
   const [form, setForm] = useState({ name: '', email: '', password: '', slug: '' });
   const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     try {
-      const res = mode === 'login'
-        ? await api.login({ email: form.email, password: form.password })
-        : await api.register(form);
-      setToken(res.token);
-      onAuth(res.restaurant);
+      if (mode === 'login') {
+        const res = await api.login({ email: form.email, password: form.password });
+        setToken(res.token);
+        onAuth(res.restaurant);
+      } else if (mode === 'register') {
+        const res = await api.register(form);
+        setToken(res.token);
+        onAuth(res.restaurant);
+      } else if (mode === 'forgot') {
+        await api.forgotPassword(form.email);
+        setInfo('Pokud e-mail existuje v naší databázi, poslali jsme na něj odkaz pro obnovení hesla. Zkontrolujte i složku spam.');
+      } else if (mode === 'reset') {
+        const res = await api.resetPassword(resetTokenFromUrl, form.password);
+        setToken(res.token);
+        // Strip token from URL.
+        try { window.history.replaceState({}, '', '/admin'); } catch { /* ignore */ }
+        onAuth(res.restaurant);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -30,9 +45,22 @@ function AuthForm({ onAuth }) {
     }
   }
 
+  const titles = {
+    login: 'Přihlášení',
+    register: 'Registrace restaurace',
+    forgot: 'Zapomenuté heslo',
+    reset: 'Nastavte nové heslo',
+  };
+  const submitLabels = {
+    login: 'Přihlásit',
+    register: 'Vytvořit účet',
+    forgot: 'Poslat e-mail s odkazem',
+    reset: 'Nastavit nové heslo',
+  };
+
   return (
     <div className="container" style={{ maxWidth: 420, paddingTop: 48 }}>
-      <h1>{mode === 'login' ? 'Přihlášení' : 'Registrace restaurace'}</h1>
+      <h1>{titles[mode]}</h1>
       <form onSubmit={submit} className="card">
         {mode === 'register' && (
           <>
@@ -46,24 +74,50 @@ function AuthForm({ onAuth }) {
             </label>
           </>
         )}
-        <label>
-          <span>E-mail</span>
-          <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-        </label>
-        <label>
-          <span>Heslo</span>
-          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
-        </label>
+        {(mode === 'login' || mode === 'register' || mode === 'forgot') && (
+          <label>
+            <span>E-mail</span>
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          </label>
+        )}
+        {(mode === 'login' || mode === 'register' || mode === 'reset') && (
+          <label>
+            <span>{mode === 'reset' ? 'Nové heslo' : 'Heslo'}</span>
+            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
+          </label>
+        )}
         {error && <p className="error">{error}</p>}
+        {info && <p className="muted" style={{ background: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 8 }}>{info}</p>}
         <button className="primary" disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Pracuji…' : (mode === 'login' ? 'Přihlásit' : 'Vytvořit účet')}
+          {loading ? 'Pracuji…' : submitLabels[mode]}
         </button>
       </form>
       <p className="muted" style={{ textAlign: 'center' }}>
-        {mode === 'login' ? 'Nemáte účet?' : 'Už máte účet?'}{' '}
-        <a href="#" onClick={(e) => { e.preventDefault(); setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}>
-          {mode === 'login' ? 'Zaregistrujte se' : 'Přihlaste se'}
-        </a>
+        {mode === 'login' && (
+          <>
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('forgot'); setError(null); setInfo(null); }}>
+              Zapomněli jste heslo?
+            </a>
+            {' · '}
+            Nemáte účet?{' '}
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('register'); setError(null); setInfo(null); }}>
+              Zaregistrujte se
+            </a>
+          </>
+        )}
+        {mode === 'register' && (
+          <>
+            Už máte účet?{' '}
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode('login'); setError(null); setInfo(null); }}>
+              Přihlaste se
+            </a>
+          </>
+        )}
+        {(mode === 'forgot' || mode === 'reset') && (
+          <a href="#" onClick={(e) => { e.preventDefault(); setMode('login'); setError(null); setInfo(null); }}>
+            ← Zpět na přihlášení
+          </a>
+        )}
       </p>
     </div>
   );
@@ -678,6 +732,9 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
 export default function Admin() {
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const resetTokenFromUrl = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('reset')
+    : null;
 
   // Dark theme — applied at body level so it can't be overridden by anything
   useLayoutEffect(() => {
@@ -693,12 +750,18 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    // If user lands here with ?reset=… we force re-auth flow even if a stale token exists.
+    if (resetTokenFromUrl) {
+      setToken(null);
+      setLoading(false);
+      return;
+    }
     if (!getToken()) { setLoading(false); return; }
     api.me()
       .then(setRestaurant)
       .catch(() => setToken(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [resetTokenFromUrl]);
 
   function logout() {
     setToken(null);
@@ -706,6 +769,6 @@ export default function Admin() {
   }
 
   if (loading) return <div className="container"><p>Načítání…</p></div>;
-  if (!restaurant) return <AuthForm onAuth={setRestaurant} />;
+  if (!restaurant) return <AuthForm onAuth={setRestaurant} resetTokenFromUrl={resetTokenFromUrl} />;
   return <Dashboard restaurant={restaurant} onLogout={logout} onRestaurantUpdated={setRestaurant} />;
 }

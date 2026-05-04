@@ -248,6 +248,27 @@ async function run() {
       assert(r.status === 200, 'POST /api/admin/categories/:id/move returns 200');
     }
 
+    // 10b. Forgot password — non-existent email returns 200 (no enumeration)
+    {
+      const r = await fetchJson(`${BASE}/api/auth/forgot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'nobody-here@example.com' }),
+      });
+      assert(r.status === 200 && r.body && r.body.ok === true,
+        'POST /api/auth/forgot returns 200 even for unknown email (anti-enum)');
+    }
+
+    // 10c. Reset with bogus token returns 400
+    {
+      const r = await fetchJson(`${BASE}/api/auth/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'definitely-not-a-real-token', password: 'newpass1234' }),
+      });
+      assert(r.status === 400, 'POST /api/auth/reset with bogus token returns 400');
+    }
+
     // 11. Restaurant profile update + propagation to public menu
     {
       const upd = await fetchJson(`${BASE}/api/admin/profile`, {

@@ -99,6 +99,8 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 ### Auth
 - `POST /api/auth/register` — `{ name, email, password, slug? }`
 - `POST /api/auth/login` — `{ email, password }`
+- `POST /api/auth/forgot` — `{ email }` — vždy vrací 200 (anti-enumeration). Pošle e-mail s tokenem (1h platnost) přes Resend.
+- `POST /api/auth/reset` — `{ token, password }` — vrací nový JWT.
 
 ### Admin (Bearer token)
 - `GET    /api/admin/me`

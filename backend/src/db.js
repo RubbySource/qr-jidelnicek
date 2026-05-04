@@ -59,6 +59,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_items_category ON items(category_id);
   CREATE INDEX IF NOT EXISTS idx_views_restaurant ON menu_views(restaurant_id);
   CREATE INDEX IF NOT EXISTS idx_views_viewed_at ON menu_views(viewed_at);
+
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_password_resets_restaurant ON password_resets(restaurant_id);
 `);
 
 function hasColumn(table, column) {

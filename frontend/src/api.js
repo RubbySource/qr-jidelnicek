@@ -42,6 +42,8 @@ export const api = {
   },
   register: (payload) => request('POST', '/api/auth/register', payload),
   login: (payload) => request('POST', '/api/auth/login', payload),
+  forgotPassword: (email) => request('POST', '/api/auth/forgot', { email }),
+  resetPassword: (token, password) => request('POST', '/api/auth/reset', { token, password }),
   me: () => request('GET', '/api/admin/me', null, true),
   myMenu: () => request('GET', '/api/admin/menu', null, true),
   createCategory: (payload) => request('POST', '/api/admin/categories', payload, true),
