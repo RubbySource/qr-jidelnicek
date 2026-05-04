@@ -22,6 +22,7 @@ Digitální menu pro české restaurace s QR kódem. SaaS, 299 Kč/měsíc.
 - **Stripe billing** — měsíční předplatné 299 Kč, trial, webhooky pro aktivaci/expiraci
 - **Transakční e-maily** — payment-confirmed, trial-expiring (Resend, dry-run režim bez API klíče)
 - **Ukázkové menu** — `/api/admin/seed-demo`
+- **PWA / offline menu** — service worker (`/sw.js`) + `manifest.json`. V produkci se zaregistruje automaticky; veřejné menu funguje offline (stale-while-revalidate). Restaurace se špatným signálem? Nevadí.
 
 ## Struktura
 ```
