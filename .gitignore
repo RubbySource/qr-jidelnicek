@@ -11,3 +11,4 @@ build/
 *.sqlite-wal
 .vscode/
 .idea/
+.claude/
