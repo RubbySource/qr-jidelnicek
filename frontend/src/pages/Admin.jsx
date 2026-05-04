@@ -336,7 +336,7 @@ function ItemEditor({ categoryId, item, onSaved, onCancel }) {
   );
 }
 
-function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
+function CategoryHeader({ category, onRename, onDelete, onBulkAvailability, dragHandlers }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
 
@@ -372,8 +372,14 @@ function CategoryHeader({ category, onRename, onDelete, dragHandlers }) {
         )}
       </div>
       {!editing && (
-        <div className="row">
+        <div className="row" style={{ flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setEditing(true)}>Přejmenovat</button>
+          {onBulkAvailability && (
+            <>
+              <button type="button" onClick={() => onBulkAvailability(false)} title="Označit všechny položky v kategorii jako nedostupné">Vše nedost.</button>
+              <button type="button" onClick={() => onBulkAvailability(true)} title="Označit všechny položky v kategorii jako dostupné">Vše dost.</button>
+            </>
+          )}
           <button className="danger" onClick={onDelete}>Smazat kategorii</button>
         </div>
       )}
@@ -400,7 +406,7 @@ function AdminBadges({ item }) {
   );
 }
 
-function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDragOver, onDrop, isDragging }) {
+function ItemRow({ item, onEdit, onDelete, onToggleAvailable, onDuplicate, dragHandlers, onDragOver, onDrop, isDragging }) {
   return (
     <div
       className={`item ${isDragging ? 'item-dragging' : ''} ${!item.available ? 'item-row-unavailable' : ''}`}
@@ -425,6 +431,7 @@ function ItemRow({ item, onEdit, onDelete, onToggleAvailable, dragHandlers, onDr
           <span className="slider" />
         </label>
         <button onClick={onEdit}>Upravit</button>
+        <button onClick={onDuplicate} title="Duplikovat položku">⧉</button>
         <button className="danger" onClick={onDelete}>×</button>
       </div>
     </div>
@@ -474,6 +481,26 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
     if (!confirm('Smazat položku?')) return;
     await api.deleteItem(id);
     load();
+  }
+
+  async function duplicateItem(id) {
+    try {
+      await api.duplicateItem(id);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function setCategoryAvailability(id, available) {
+    const verb = available ? 'jako dostupné' : 'jako nedostupné';
+    if (!confirm(`Označit všechny položky v této kategorii ${verb}?`)) return;
+    try {
+      await api.setCategoryAvailability(id, available);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function seedDemo() {
@@ -716,6 +743,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
               category={c}
               onRename={(name) => renameCategory(c.id, name)}
               onDelete={() => deleteCategory(c.id)}
+              onBulkAvailability={(v) => setCategoryAvailability(c.id, v)}
               dragHandlers={{
                 draggable: true,
                 onDragStart: () => startDragCategory(c.id),
@@ -741,6 +769,7 @@ function Dashboard({ restaurant, onLogout, onRestaurantUpdated }) {
                     item={it}
                     onEdit={() => setEditingItem(it)}
                     onDelete={() => deleteItem(it.id)}
+                    onDuplicate={() => duplicateItem(it.id)}
                     onToggleAvailable={(v) => toggleAvailable(it, v)}
                     isDragging={dragKey === `item-${it.id}`}
                     dragHandlers={{

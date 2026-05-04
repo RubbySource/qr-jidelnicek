@@ -114,6 +114,8 @@ Frontend čte pouze `VITE_API_URL` (viz `frontend/.env.example`). V devu nech pr
 - `PUT    /api/admin/items/:id`
 - `PUT    /api/admin/items/:id/order` — `{ position }`
 - `PATCH  /api/admin/items/:id/availability` — `{ available }`
+- `PATCH  /api/admin/categories/:id/availability` — `{ available }` (bulk: označí všechny položky kategorie)
+- `POST   /api/admin/items/:id/duplicate` — vrací nový `{ id, position }`
 - `POST   /api/admin/items/:id/move` — `{ direction: "up"|"down" }`
 - `DELETE /api/admin/items/:id`
 - `POST   /api/admin/seed-demo` — `{ force: bool }`. Bez `force=true` vrací 409 pokud už menu obsahuje kategorie.

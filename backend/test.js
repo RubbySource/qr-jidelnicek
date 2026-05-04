@@ -269,6 +269,32 @@ async function run() {
       assert(r.status === 400, 'POST /api/auth/reset with bogus token returns 400');
     }
 
+    // 10c2. Duplicate item + bulk-availability
+    if (categoryId) {
+      const adminBefore = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      const firstItem = adminBefore.body.categories[0].items[0];
+      const beforeCount = adminBefore.body.categories[0].items.length;
+
+      const dup = await fetchJson(`${BASE}/api/admin/items/${firstItem.id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      assert(dup.status === 201 && typeof dup.body.id === 'number',
+        'POST /api/admin/items/:id/duplicate returns 201 with new id');
+
+      const adminAfter = await fetchJson(`${BASE}/api/admin/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      assert(adminAfter.body.categories[0].items.length === beforeCount + 1, 'duplicate increases item count by 1');
+
+      const bulk = await fetchJson(`${BASE}/api/admin/categories/${categoryId}/availability`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ available: false }),
+      });
+      assert(bulk.status === 200 && bulk.body.updated > 0,
+        'PATCH /api/admin/categories/:id/availability flips all items');
+    }
+
     // 10d. Menu export → import roundtrip
     {
       const exp = await fetchJson(`${BASE}/api/admin/menu/export`, {

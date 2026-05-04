@@ -55,6 +55,8 @@ export const api = {
   updateItem: (id, payload) => request('PUT', `/api/admin/items/${id}`, payload, true),
   reorderItem: (id, position) => request('PUT', `/api/admin/items/${id}/order`, { position }, true),
   setItemAvailability: (id, available) => request('PATCH', `/api/admin/items/${id}/availability`, { available }, true),
+  setCategoryAvailability: (id, available) => request('PATCH', `/api/admin/categories/${id}/availability`, { available }, true),
+  duplicateItem: (id) => request('POST', `/api/admin/items/${id}/duplicate`, {}, true),
   deleteItem: (id) => request('DELETE', `/api/admin/items/${id}`, null, true),
   moveItem: (id, direction) => request('POST', `/api/admin/items/${id}/move`, { direction }, true),
   seedDemo: (force = false) => request('POST', '/api/admin/seed-demo', { force }, true),

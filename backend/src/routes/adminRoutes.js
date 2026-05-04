@@ -358,6 +358,56 @@ router.delete('/items/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/items/:id/duplicate', (req, res) => {
+  const item = ownsItem(req.user.id, req.params.id);
+  if (!item) return res.status(404).json({ error: 'not found' });
+
+  const src = db.prepare(
+    `SELECT name, description, price, image_url, available, name_en, description_en,
+            is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+     FROM items WHERE id = ?`
+  ).get(req.params.id);
+  if (!src) return res.status(404).json({ error: 'not found' });
+
+  const nextPos = db.prepare(
+    'SELECT COALESCE(MAX(position) + 1, 0) AS n FROM items WHERE category_id = ?'
+  ).get(item.category_id).n;
+
+  const result = db.prepare(`
+    INSERT INTO items (
+      category_id, name, description, price, image_url, available, position, name_en, description_en,
+      is_vegetarian, is_vegan, is_gluten_free, is_lactose_free, is_spicy, is_featured, allergens
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    item.category_id,
+    `${src.name} (kopie)`,
+    src.description,
+    src.price,
+    src.image_url,
+    src.available,
+    nextPos,
+    src.name_en,
+    src.description_en,
+    src.is_vegetarian,
+    src.is_vegan,
+    src.is_gluten_free,
+    src.is_lactose_free,
+    src.is_spicy,
+    0, // duplicates lose featured flag — only one chef's pick at a time per source
+    src.allergens
+  );
+  res.status(201).json({ id: toNum(result.lastInsertRowid), position: nextPos });
+});
+
+router.patch('/categories/:id/availability', (req, res) => {
+  const cat = ownsCategory(req.user.id, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'not found' });
+  const { available } = req.body || {};
+  if (typeof available !== 'boolean') return res.status(400).json({ error: 'available must be boolean' });
+  const result = db.prepare('UPDATE items SET available = ? WHERE category_id = ?').run(available ? 1 : 0, req.params.id);
+  res.json({ ok: true, updated: toNum(result.changes) });
+});
+
 router.get('/menu/export', (req, res) => {
   const r = db.prepare('SELECT id, name, slug FROM restaurants WHERE id = ?').get(req.user.id);
   if (!r) return res.status(404).json({ error: 'not found' });
