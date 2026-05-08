@@ -127,4 +127,4 @@ function toNum(v) {
 }
 
 module.exports = db;
-module.exports.toN
+module.exports.toNum = toNum;
